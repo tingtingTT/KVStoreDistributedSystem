@@ -10,9 +10,9 @@ from time import sleep
 import os
 import re
 
-hostname = 'localhost'  # Windows and Mac users can change this to the docker vm ip
+hostname = '192.168.99.100'  # Windows and Mac users can change this to the docker vm ip
 sudo = ''
-container = 'hw3'
+container = 'hw4'
 
 IP_ADDRESSES = ['10.0.0.20', '10.0.0.21', '10.0.0.22', '10.0.0.23']
 HOST_PORTS = ['8083', '8084', '8085', '8086']

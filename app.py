@@ -48,7 +48,7 @@ def activate_job():
         while True:
             with app.app_context():
                 heartbeat()
-                time.sleep(1)
+                time.sleep(0.050)
     thread = threading.Thread(target=run_job)
     thread.start()
 
