@@ -364,6 +364,7 @@ class TestHW3(unittest.TestCase):
         res = requests.put(self.replica_address[0] + "/kv-store/update_view?type=add", data={'ip_port': '10.0.0.24:8080'})
         self.assertTrue(res.status_code, [200, '200'])
         d = res.json()
+        print d
         self.assertEqual(d['msg'], 'success')
         self.assertEqual(d['number_of_nodes'], 3)
         if not TEST_STATUS_CODES_ONLY:

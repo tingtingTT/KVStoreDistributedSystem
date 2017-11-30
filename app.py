@@ -46,8 +46,8 @@ def activate_job():
     def run_job():
         while True:
             with app.app_context():
+                time.sleep(1)
                 heartbeat()
-                time.sleep(0.050)
     thread = threading.Thread(target=run_job)
     thread.start()
 
@@ -105,8 +105,7 @@ def heartbeat():
 ######################################################################################
 def worldSync():
     while(True):
-        tempArr = list(set(b.replica_array) | set(b.proxy_array))
-        tryNode = b.replica_array[random.randint(0, len(b.replica_array)-1)]
+        tryNode = b.world_view[random.randint(0, len(b.world_view)-1)]
         if tryNode != b.my_IP:
             try:
                 response = requests.get('http://'+tryNode+"/availability", timeout=5)
@@ -134,6 +133,9 @@ def worldSync():
                     # res = response.json()
                     # node_kv_store = res['kv_store']
                     demoteNode(node)
+            # case when a node is removed from replica array, we are not pinging it anyway cause it is not in our view
+            elif node in b.proxy_array and len(b.replica_array)<b.K:
+                promoteNode(node)
 
 
 def isProxy():
@@ -295,13 +297,14 @@ class AddNode(Resource):
     def put(self):
         data = request.form.to_dict()
         add_node_ip_port = data['ip_port']
-        add_node_view_clock = date['view_vector_clock']
+        add_node_view_clock = map(int,data['view_vector_clock'].split('.'))
         # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
         if add_node_ip_port not in b.world_view:
             # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
             update(add_node_ip_port)
-            b.view_vector_clock = merge(b.view_vector_clock, add_node_view_clock)
-            b.view_vector_clock[b.node_ID_dic[add_node_ip_port]] += 1
+            for i in range(0,len(b.view_vector_clock)):
+                b.view_vector_clock[i]= max(b.view_vector_clock[i],add_node_view_clock[i])
+            b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
         return jsonify({'node': b.my_IP, 'ip_port': add_node_ip_port})
 
 #########################################
@@ -313,11 +316,12 @@ class RemoveNode(Resource):
         #    return proxy_forward(request.url_rule,request.method,request.form.to_dict(),'')
         data = request.form.to_dict()
         remove_node_ip_port = data['ip_port']
-        add_node_view_clock = date['view_vector_clock']
+        remove_node_view_clock = map(int,data['view_vector_clock'].split('.'))
         # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
         if remove_node_ip_port in b.world_view:
-            b.view_vector_clock = merge(b.view_vector_clock, add_node_view_clock)
-            b.view_vector_clock[b.node_ID_dic[remove_node_ip_port]] += 1
+            for i in range(0,len(b.view_vector_clock)):
+                b.view_vector_clock[i]= max(b.view_vector_clock[i],remove_node_view_clock[i])
+            b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
             b.world_view.remove(remove_node_ip_port)
             if remove_node_ip_port in b.replica_array:
                 b.replica_array.remove(remove_node_ip_port)
@@ -338,6 +342,9 @@ class UpdateView(Resource):
         if type == 'add':
             if add_node_ip_port not in b.world_view:
                 update(add_node_ip_port)
+                b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+                # new_node_vector_clock = b.view_vector_clock[:]
+                # new_node_vector_clock[b.node_ID_dic[add_node_ip_port]] += 1
                 # b.world_view.append(add_node_ip_port)
                 # give the brand new node its attributes using current node's data
                 if add_node_ip_port in b.replica_array:
@@ -367,11 +374,10 @@ class UpdateView(Resource):
                 for node in b.world_view:
                     if node != add_node_ip_port and node != b.my_IP:
                         try:
-                            requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port, 'view_vector_clock': b.view_vector_clock})
+                            requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port, 'view_vector_clock': '.'.join(map(str,b.view_vector_clock))})
                         except requests.exceptions.ConnectionError:
                             pass
                 # add successfully, update your clock
-                b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                 return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
             else:
                 return addSameNode()
@@ -381,6 +387,7 @@ class UpdateView(Resource):
                 return removeNodeDoesNotExist()
             else:
                 b.world_view.remove(add_node_ip_port)
+                b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                 if add_node_ip_port in b.replica_array:
                     b.replica_array.remove(add_node_ip_port)
                 elif add_node_ip_port in b.proxy_array:
@@ -390,10 +397,10 @@ class UpdateView(Resource):
                 for node in b.world_view:
                     if node != add_node_ip_port and node != b.my_IP:
                         try:
-                            requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port, 'view_vector_clock': b.view_vector_clock})
+                            requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port, 'view_vector_clock': '.'.join(map(str,b.view_vector_clock))})
                         except requests.exceptions.ConnectionError:
                             pass
-                b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+
                 return removeNodeSuccess()
 
 
@@ -447,7 +454,7 @@ class GetKeyDetails(Resource):
             # write the more up to date value to our kv_store_vector_clock
             b.kv_store[key] = (sender_key_value, sender_timestamp)
             b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
-            b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+            # b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
             # retrun the same value
             return getSuccess(b.kv_store[key][0], b.kv_store[key][1])
         else:
@@ -459,7 +466,7 @@ class GetKeyDetails(Resource):
             elif sender_timestamp > my_key_timestamp:
                 # write the more up to date value to our kv_store_vector_clock
                 b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
-                b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+                # b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                 b.kv_store[key] = (sender_key_value, sender_timestamp)
                 # retrun the same value
                 return getSuccess(b.kv_store[key][0], b.kv_store[key][1])
@@ -471,7 +478,7 @@ class GetKeyDetails(Resource):
                 else:
                     # write the more up to date value to our kv_store
                     b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
-                    b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+                    # b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                     b.kv_store[key] = (sender_key_value, sender_timestamp)
                     # retrun the same value
                     return getSuccess(b.kv_store[key][0], b.kv_store[key][1])
