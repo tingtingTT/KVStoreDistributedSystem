@@ -23,7 +23,6 @@ class BaseClass():
         self.kv_store_vector_clock=[0]*8 # is the pay load
         self.replica_array=[] # a list of current replicas IP:Port
         self.proxy_array=[] # a list of current proxies  IP:Port
-        self.num_live_nodes = 0
         # get variables form INV variables
         self.my_IP = os.environ.get('IPPORT', None)
         self.IP = socket.gethostbyname(socket.gethostname())
@@ -66,11 +65,9 @@ def update(add_node_ip_port):
     # promote to be a replica
     if (len(b.replica_array) < b.K):
         b.replica_array.append(add_node_ip_port)
-        b.num_live_nodes += 1 # var++ doesnt work in python
     else:
     # add the node as a proxy
         b.proxy_array.append(add_node_ip_port)
-        b.num_live_nodes += 1
 
 
 ###########################################################
@@ -123,16 +120,13 @@ def worldSync():
     for node in b.world_view:
         if res[node] != 0: #if the ping result is saying the node is down
             if node in b.replica_array:
-                b.num_live_nodes -= 1
                 b.replica_array.remove(node)
                 if len(b.replica_array)<b.K and len(b.proxy_array)>0:
                     promoteNode(b.proxy_array[0])
             if node in b.proxy_array:
-                b.num_live_nodes -= 1
                 b.proxy_array.remove(node)
         else:
             if node not in b.replica_array and node not in b.proxy_array:
-                b.num_live_nodes+=1
                 if len(b.replica_array)<b.K:
                     promoteNode(node)
                 elif len(b.replica_array)==b.K:
@@ -291,7 +285,6 @@ class ChangeView(Resource):
             b.proxy_array = []
         else:
             b.proxy_array = data['proxy_array'].split(',')
-        b.num_live_nodes = int(data['num_live_nodes'])
         b.node_ID_dic = json.loads(data['node_ID_dic'])
         return jsonify({'world_view': b.world_view})
 
@@ -302,10 +295,12 @@ class AddNode(Resource):
     def put(self):
         data = request.form.to_dict()
         add_node_ip_port = data['ip_port']
+        add_node_view_clock = date['view_vector_clock']
         # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
         if add_node_ip_port not in b.world_view:
             # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
             update(add_node_ip_port)
+            b.view_vector_clock = merge(b.view_vector_clock, add_node_view_clock)
             b.view_vector_clock[b.node_ID_dic[add_node_ip_port]] += 1
         return jsonify({'node': b.my_IP, 'ip_port': add_node_ip_port})
 
@@ -318,10 +313,11 @@ class RemoveNode(Resource):
         #    return proxy_forward(request.url_rule,request.method,request.form.to_dict(),'')
         data = request.form.to_dict()
         remove_node_ip_port = data['ip_port']
+        add_node_view_clock = date['view_vector_clock']
         # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
         if remove_node_ip_port in b.world_view:
+            b.view_vector_clock = merge(b.view_vector_clock, add_node_view_clock)
             b.view_vector_clock[b.node_ID_dic[remove_node_ip_port]] += 1
-            b.num_live_nodes -= 1
             b.world_view.remove(remove_node_ip_port)
             if remove_node_ip_port in b.replica_array:
                 b.replica_array.remove(remove_node_ip_port)
@@ -353,7 +349,7 @@ class UpdateView(Resource):
                     'node_ID_dic':json.dumps(b.node_ID_dic),
                     'view_vector_clock':'.'.join(map(str,b.view_vector_clock)),
                     'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
-                    'num_live_nodes':str(b.num_live_nodes)
+                    'num_live_nodes':str(len(b.replica_array) + len(b.proxy_array))
                     })
                 else:
                     requests.put('http://'+ add_node_ip_port +'/update_datas',data={
@@ -364,18 +360,18 @@ class UpdateView(Resource):
                     'node_ID_dic':json.dumps(b.node_ID_dic),
                     'view_vector_clock':'.'.join(map(str,b.view_vector_clock)),
                     'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
-                    'num_live_nodes':str(b.num_live_nodes)
+                    'num_live_nodes':str(len(b.replica_array) + len(b.proxy_array))
                     })
                 # not already added
                 # tell all nodes in view, add the new node
                 for node in b.world_view:
                     if node != add_node_ip_port and node != b.my_IP:
                         try:
-                            requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
+                            requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port, 'view_vector_clock': b.view_vector_clock})
                         except requests.exceptions.ConnectionError:
                             pass
                 # add successfully, update your clock
-                b.view_vector_clock[b.node_ID_dic[add_node_ip_port]] += 1
+                b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                 return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
             else:
                 return addSameNode()
@@ -384,8 +380,6 @@ class UpdateView(Resource):
             if add_node_ip_port not in b.world_view:
                 return removeNodeDoesNotExist()
             else:
-                b.view_vector_clock[b.node_ID_dic[add_node_ip_port]] += 1
-                b.num_live_nodes -= 1
                 b.world_view.remove(add_node_ip_port)
                 if add_node_ip_port in b.replica_array:
                     b.replica_array.remove(add_node_ip_port)
@@ -396,10 +390,10 @@ class UpdateView(Resource):
                 for node in b.world_view:
                     if node != add_node_ip_port and node != b.my_IP:
                         try:
-                            requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
+                            requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port, 'view_vector_clock': b.view_vector_clock})
                         except requests.exceptions.ConnectionError:
                             pass
-                b.view_vector_clock[b.node_ID_dic[add_node_ip_port]] += 1
+                b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                 return removeNodeSuccess()
 
 
@@ -432,7 +426,6 @@ class ResetData(Resource):
         b.kv_store_vector_clock=[0]*8 # is the pay load
         b.replica_array=[] # a list of current replicas IP:Port
         b.proxy_array=[] # a list of current proxies  IP:Port
-        b.num_live_nodes = 0
 
 #######################################
 # class for getting key in gossip --> helper
@@ -454,6 +447,7 @@ class GetKeyDetails(Resource):
             # write the more up to date value to our kv_store_vector_clock
             b.kv_store[key] = (sender_key_value, sender_timestamp)
             b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+            b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
             # retrun the same value
             return getSuccess(b.kv_store[key][0], b.kv_store[key][1])
         else:
@@ -465,6 +459,7 @@ class GetKeyDetails(Resource):
             elif sender_timestamp > my_key_timestamp:
                 # write the more up to date value to our kv_store_vector_clock
                 b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+                b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                 b.kv_store[key] = (sender_key_value, sender_timestamp)
                 # retrun the same value
                 return getSuccess(b.kv_store[key][0], b.kv_store[key][1])
@@ -476,6 +471,7 @@ class GetKeyDetails(Resource):
                 else:
                     # write the more up to date value to our kv_store
                     b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+                    b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                     b.kv_store[key] = (sender_key_value, sender_timestamp)
                     # retrun the same value
                     return getSuccess(b.kv_store[key][0], b.kv_store[key][1])
@@ -487,7 +483,7 @@ class GetNodeState(Resource):
     def get(self):
         return jsonify({'world_view': b.world_view, 'replica_array': b.replica_array, 'proxy_array': b.proxy_array,
                 'kv_store': b.kv_store, 'node_ID_dic': b.node_ID_dic, 'view_vector_clock': '.'.join(map(str,b.view_vector_clock)),
-                'kv_store_vector_clock': '.'.join(map(str,b.kv_store_vector_clock)), 'num_live_nodes': b.num_live_nodes, 'node_ID': b.node_ID_dic[b.my_IP], 'is_proxy': b.my_IP in b.proxy_array, 'my_IP': b.my_IP})
+                'kv_store_vector_clock': '.'.join(map(str,b.kv_store_vector_clock)), 'num_live_nodes': len(b.replica_array) + len(b.proxy_array), 'node_ID': b.node_ID_dic[b.my_IP], 'is_proxy': b.my_IP in b.proxy_array, 'my_IP': b.my_IP})
         # return:
         # num_live_nodes, replica_array, proxy_array, kv_store, node_ID_dic, view_vector_clock
 ############################################
@@ -535,7 +531,7 @@ def promoteNode(promote_node_IP):
     res = requests.put("http://"+promote_node_IP+"/changeView", data={'world_view':','.join(b.world_view),
     'replica_array':','.join(b.replica_array),
     'proxy_array':','.join(b.proxy_array),
-    'num_live_nodes': str(b.num_live_nodes),
+    'num_live_nodes': str(len(b.replica_array) + len(b.proxy_array)),
     'node_ID_dic': json.dumps(b.node_ID_dic)})
     resp = res.json()
     # Update d.world_view
@@ -555,7 +551,7 @@ def demoteNode(demote_node_IP):
     res = requests.put("http://"+demote_node_IP+"/changeView", data={'world_view':','.join(b.world_view),
     'replica_array':','.join(b.replica_array),
     'proxy_array':','.join(b.proxy_array),
-    'num_live_nodes': b.num_live_nodes,
+    'num_live_nodes': len(b.replica_array) + len(b.proxy_array),
     'node_ID_dic': json.dumps(b.node_ID_dic)})
     resp = res.json()
     # Update b.world_view
@@ -615,13 +611,13 @@ def addSameNode():
     return response
 # add node successful
 def addNodeSuccess(node_ID):
-    response = jsonify({'msg': 'success', 'node_id': node_ID, 'number_of_nodes': b.num_live_nodes})
+    response = jsonify({'msg': 'success', 'node_id': node_ID, 'number_of_nodes': len(b.replica_array) + len(b.proxy_array)})
     response.status_code = 200
     return response
 
 # remove node success
 def removeNodeSuccess():
-    response = jsonify({'result': 'success', 'number_of_nodes': b.num_live_nodes})
+    response = jsonify({'result': 'success', 'number_of_nodes': len(b.replica_array) + len(b.proxy_array)})
     response.status_code = 200
     return response
 
