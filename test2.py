@@ -10,9 +10,9 @@ from time import sleep
 import os
 import re
 
-hostname = 'localhost'  # Windows and Mac users can change this to the docker vm ip
+hostname = '192.168.99.100'  # Windows and Mac users can change this to the docker vm ip
 sudo = ''
-container = 'hw3'
+container = 'hw4'
 
 IP_ADDRESSES = ['10.0.0.20', '10.0.0.21', '10.0.0.22', '10.0.0.23']
 HOST_PORTS = ['8083', '8084', '8085', '8086']
@@ -364,6 +364,7 @@ class TestHW3(unittest.TestCase):
         res = requests.put(self.replica_address[0] + "/kv-store/update_view?type=add", data={'ip_port': '10.0.0.24:8080'})
         self.assertTrue(res.status_code, [200, '200'])
         d = res.json()
+        print d
         self.assertEqual(d['msg'], 'success')
         self.assertEqual(d['number_of_nodes'], 3)
         if not TEST_STATUS_CODES_ONLY:
