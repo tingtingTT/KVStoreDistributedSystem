@@ -18,12 +18,13 @@ class BaseClass():
     def __init__(self):
         self.kv_store={} # key:[value, time_stamp]
         self.node_ID_dic={} # ip_port: node_ID
-        self.world_view=[]
+        self.part_dic={} # part_id: replica_array
+        self.world_view= [] # change in initView
         self.view_vector_clock=[0]*8 # vector clock of the world. Used for gossip
         self.kv_store_vector_clock=[0]*8 # is the pay load
-        self.replica_array=[] # a list of current replicas IP:Port
         self.proxy_array=[] # a list of current proxies  IP:Port
-        # get variables form INV variables
+        self.part_id = -1
+        # get variables form ENV variables
         self.my_IP = os.environ.get('IPPORT', None)
         self.IP = socket.gethostbyname(socket.gethostname())
         self.K_init = os.getenv('K', None)
@@ -54,29 +55,40 @@ def activate_job():
 ############################################
 # init world_view using VIEW
 ######################################
-def update(add_node_ip_port):
+def update(add_node_ip_port, part_ID):
     # update view
     # b.world_view.append(add_node_ip_port)
     # check if the ip is already in the dictionary or not,if not, add new ID. if so, do nothing
     if b.node_ID_dic.get(add_node_ip_port) is None:
         b.node_ID_dic[add_node_ip_port] = len(b.node_ID_dic)
-    if add_node_ip_port not in b.world_view:
-        b.world_view.append(add_node_ip_port)
-    # promote to be a replica
-    if (len(b.replica_array) < b.K):
-        b.replica_array.append(add_node_ip_port)
-    else:
-    # add the node as a proxy
-        b.proxy_array.append(add_node_ip_port)
 
+    # initialize part_dic
+    if part_ID in b.part_dic:
+        b.part_dic[part_ID].append(add_node_ip_port)
+    else:
+        b.part_dic[part_ID] = [add_node_ip_port]
 
 ###########################################################
 # functon to init world view using user input VIEW
 #####################################################
 def initVIEW():
-    for node in b.VIEW_list:
-        b.world_view.append(node)
-        update(node)
+    N = len(b.VIEW_list)
+    numPart = N/b.K
+    numProx = N%b.K
+
+    if numProx > 0:
+        b.proxy_array = b.VIEW_list[b.K*numPart:]
+
+    for i in range(0, b.K * numPart):
+        part_ID = i/b.K
+        if b.VIEW_list[i] == b.my_IP:
+            b.part_id = part_ID
+        update(b.VIEW_list[i], part_ID)
+
+    # if b.my_IP not in b.proxy_array:
+    #     b.world_view = b.part_dic[b.part_id]
+
+
 
 
 ###########################################################
@@ -488,9 +500,9 @@ class GetKeyDetails(Resource):
 ######################################
 class GetNodeState(Resource):
     def get(self):
-        return jsonify({'world_view': b.world_view, 'replica_array': b.replica_array, 'proxy_array': b.proxy_array,
+        return jsonify({'part_id':b.part_id, 'part_dic': b.part_dic, 'partition_members': b.part_dic[b.part_id], 'proxy_array': b.proxy_array,
                 'kv_store': b.kv_store, 'node_ID_dic': b.node_ID_dic, 'view_vector_clock': '.'.join(map(str,b.view_vector_clock)),
-                'kv_store_vector_clock': '.'.join(map(str,b.kv_store_vector_clock)), 'num_live_nodes': len(b.replica_array) + len(b.proxy_array), 'node_ID': b.node_ID_dic[b.my_IP], 'is_proxy': b.my_IP in b.proxy_array, 'my_IP': b.my_IP})
+                'kv_store_vector_clock': '.'.join(map(str,b.kv_store_vector_clock)), 'num_live_nodes': len(b.world_view), 'node_ID': b.node_ID_dic[b.my_IP], 'is_proxy': b.my_IP in b.proxy_array, 'my_IP': b.my_IP})
         # return:
         # num_live_nodes, replica_array, proxy_array, kv_store, node_ID_dic, view_vector_clock
 ############################################
