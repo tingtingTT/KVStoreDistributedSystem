@@ -45,6 +45,9 @@ class Node():
         if(len(self.replica_array) < self.K):
             #redistribute your self
             print('hey')
+        if(len(self.replica_array)+len(self.proxy_array) >= self.K * 2):
+            # get rid of some of your nodes
+            print('hey')
     def assign_partition_ID(self):
         i = 0
         for ips in self.partitions:

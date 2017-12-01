@@ -104,7 +104,9 @@ def worldSync():
                 pass
             except requests.exceptions.Timeout:
                 pass
-    b.partition() # partitions based on the new world view 
+    b.partition() # partitions based on the new world view
+    # maybe we need to keep track of the extra nodes world wide, so if we have enough nodes across different partitions
+    # we can form a new partition
     for node in b.world_view:
         if res[node] != 0: #if the ping result is saying the node is down
             if node in b.replica_array:
