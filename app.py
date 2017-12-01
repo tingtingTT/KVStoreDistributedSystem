@@ -35,7 +35,6 @@ class BaseClass():
         if self.VIEW_init is not None:
             self.VIEW_list = self.VIEW_init.split(',')
 
-
 b = BaseClass()
 
 ###########################################
@@ -89,11 +88,7 @@ def initVIEW():
 
     b.partition_view = getProxyArr() + getReplicaArr()
 
-
-
     return
-
-
 
 
 ###########################################################
@@ -275,8 +270,6 @@ class BasicGetPut(Resource):
 
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
 
-
-
         ########################################
         # Check if their causal payload is strictly greater than or equal to mine, or if the key is new to me
         # If it is, do the write
@@ -379,38 +372,25 @@ class RemoveNode(Resource):
 class UpdateView(Resource):
         # get type is add or remove
     def put(self):
-        from flask import request
         type = request.args.get('type','')
         data = request.form.to_dict()
         add_node_ip_port = data['ip_port']
         if type == 'add':
-            if add_node_ip_port not in b.partition_view:
-                update(add_node_ip_port)
-                b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-                # new_node_vector_clock = b.view_vector_clock[:]
-                # new_node_vector_clock[b.node_ID_dic[add_node_ip_port]] += 1
-                # b.partition_view.append(add_node_ip_port)
+            # automatically add node as proxy
+            if add_node_ip_port not in b.world_view:
+                update(add_node_ip_port, b.my_part_id)
+
                 # give the brand new node its attributes using current node's data
-                if add_node_ip_port in b.replica_array:
-                    requests.put('http://'+ add_node_ip_port +'/update_datas',data={
-                    'partition_view':','.join(b.partition_view),
-                    'replica_array':','.join(b.replica_array),
-                    'proxy_array':','.join(b.proxy_array),
-                    'kv_store':json.dumps(b.kv_store),
-                    'node_ID_dic':json.dumps(b.node_ID_dic),
-                    'view_vector_clock':'.'.join(map(str,b.view_vector_clock)),
-                    'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
-                    })
-                else:
-                    requests.put('http://'+ add_node_ip_port +'/update_datas',data={
-                    'partition_view':','.join(b.partition_view),
-                    'replica_array':','.join(b.replica_array),
-                    'proxy_array':','.join(b.proxy_array),
-                    'kv_store':'{}',
-                    'node_ID_dic':json.dumps(b.node_ID_dic),
-                    'view_vector_clock':'.'.join(map(str,b.view_vector_clock)),
-                    'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
-                    })
+                requests.put('http://'+ add_node_ip_port +'/update_datas',data={
+                'partition_view':','.join(b.partition_view),
+                'part_dic':','.join(b.part_dic),
+                'proxy_array':','.join(getProxyArr()),
+                'kv_store':'{}',
+                'node_ID_dic':json.dumps(b.node_ID_dic),
+                'view_vector_clock':'.'.join(map(str,b.view_vector_clock)),
+                'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
+                'num_live_nodes': (len(getReplicaArr()) + len(getProxyArr()))
+                })
                 # not already added
                 # tell all nodes in view, add the new node
                 for node in b.partition_view:
@@ -425,17 +405,16 @@ class UpdateView(Resource):
                 return addSameNode()
         # remove a node
         elif type == 'remove':
-            if add_node_ip_port not in b.partition_view:
+            if add_node_ip_port not in (getReplicaArr() + getProxyArr()) and add_node_ip_port not in b.partition_view:
                 return removeNodeDoesNotExist()
             else:
-                b.partition_view.remove(add_node_ip_port)
                 b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-                if add_node_ip_port in b.replica_array:
-                    b.replica_array.remove(add_node_ip_port)
-                elif add_node_ip_port in b.proxy_array:
-                    b.proxy_array.remove(add_node_ip_port)
 
-                # requests.put('http://'+add_node_ip_port+'/reset_data')
+                if add_node_ip_port in getReplicaArr():
+                    b.part_dic[b.my_part_id][0].remove(add_node_ip_port)
+                elif add_node_ip_port in getProxyArr():
+                    b.part_dic[b.my_part_id][1].remove(add_node_ip_port)
+
                 for node in b.partition_view:
                     if node != add_node_ip_port and node != b.my_IP:
                         try:
@@ -444,7 +423,6 @@ class UpdateView(Resource):
                             pass
 
                 return removeNodeSuccess()
-
 
 ############################################
 # class for updating datas
@@ -606,7 +584,6 @@ def demoteNode(demote_node_IP):
     return
     # else, since I'm newer than others, when it comes my turn to ping others,
     # I'll eventually demote someone else. Therefore, do nothing
-
 
 ############################################
 # all messaging functions
