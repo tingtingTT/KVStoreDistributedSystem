@@ -41,7 +41,10 @@ class Node():
             ID += 1
             i += self.K
         self.assign_partition_ID()
-
+        # replicas < K cannot be voilated
+        if(len(self.replica_array) < self.K):
+            #redistribute your self
+            print('hey')
     def assign_partition_ID(self):
         i = 0
         for ips in self.partitions:
