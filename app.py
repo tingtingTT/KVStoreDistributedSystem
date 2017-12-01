@@ -88,11 +88,7 @@ def initVIEW():
 
     b.partition_view = getProxyArr() + getReplicaArr()
 
-
-
     return
-
-
 
 
 ###########################################################
@@ -363,20 +359,18 @@ class UpdateView(Resource):
         if type == 'add':
             # automatically add node as proxy
             if add_node_ip_port not in b.world_view:
-                update(add_node_ip_port)
-                b.proxy_array += 1
+                update(add_node_ip_port, b.my_part_id)
 
                 # give the brand new node its attributes using current node's data
-                b.proxy_array.append(add_node_ip_port)
                 requests.put('http://'+ add_node_ip_port +'/update_datas',data={
                 'partition_view':','.join(b.partition_view),
                 'part_dic':','.join(b.part_dic),
-                'proxy_array':','.join(b.proxy_array),
+                'proxy_array':','.join(getProxyArr()),
                 'kv_store':'{}',
                 'node_ID_dic':json.dumps(b.node_ID_dic),
                 'view_vector_clock':'.'.join(map(str,b.view_vector_clock)),
                 'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
-                'num_live_nodes': (getReplicaArr() + getProxyArr())
+                'num_live_nodes': (len(getReplicaArr()) + len(getProxyArr()))
                 })
                 # not already added
                 # tell all nodes in view, add the new node
@@ -392,16 +386,15 @@ class UpdateView(Resource):
                 return addSameNode()
         # remove a node
         elif type == 'remove':
-            if add_node_ip_port not in b.partition_view:
+            if add_node_ip_port not in (getReplicaArr() + getProxyArr()) and add_node_ip_port not in b.partition_view:
                 return removeNodeDoesNotExist()
             else:
-                b.partition_view.remove(add_node_ip_port)
                 b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
 
-                if add_node_ip_port in b.replica_array:
-                    b.replica_array.remove(add_node_ip_port)
-                elif add_node_ip_port in b.proxy_array:
-                    b.proxy_array.remove(add_node_ip_port)
+                if add_node_ip_port in getReplicaArr():
+                    b.part_dic[b.my_part_id][0].remove(add_node_ip_port)
+                elif add_node_ip_port in getProxyArr():
+                    b.part_dic[b.my_part_id][1].remove(add_node_ip_port)
 
                 for node in b.partition_view:
                     if node != add_node_ip_port and node != b.my_IP:
