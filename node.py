@@ -23,11 +23,12 @@ class Node():
         self.VIEW_list = []
         if self.VIEW_init is not None:
             self.VIEW_list = self.VIEW_init.split(',')
+            self.world_view = self.VIEW_init.split(',')
         self.num_nodes = len(self.VIEW_list)
         self.num_partitions =  self.num_nodes / self.K
         self.num_proxy = self.num_nodes % self.K
         self.partitions = []
-        self.partition_ID = None
+        self.my_partition_ID = None
         self.partition()
 
     def partition(self):
@@ -35,8 +36,8 @@ class Node():
         # map views to it's appropriate partition ID
         i = 0
         ID = 0
-        while(i < len(self.VIEW_list)-1):
-            self.partitions.append(self.VIEW_list[i:i+self.K])
+        while(i < len(self.world_view )-1):
+            self.partitions.append(self.world_view [i:i+self.K])
             ID += 1
             i += self.K
         self.assign_partition_ID()
@@ -45,7 +46,7 @@ class Node():
         i = 0
         for ips in self.partitions:
             if(self.my_IP in ips):
-                self.partition_ID = i
+                self.my_partition_ID = i
                 return
             i += 1
     def header(self):

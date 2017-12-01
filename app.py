@@ -104,7 +104,7 @@ def worldSync():
                 pass
             except requests.exceptions.Timeout:
                 pass
-
+    b.partition() # partitions based on the new world view 
     for node in b.world_view:
         if res[node] != 0: #if the ping result is saying the node is down
             if node in b.replica_array:
@@ -726,7 +726,7 @@ def ping(hosts):
 class Kv_Store(Resource):
     class get_partition_id(Resource):
         def get(self):
-            return jsonify({'partition ID': b.partition_ID})
+            return jsonify({'partition ID': b.my_partition_ID})
 # resource method called
 api.add_resource(BasicGetPut, '/kv-store/<string:key>')
 api.add_resource(GetNodeDetails, '/kv-store/get_node_details')

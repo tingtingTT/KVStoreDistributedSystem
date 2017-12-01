@@ -32,7 +32,7 @@ class TestHW3(unittest.TestCase):
         sudo docker network create --subnet 10.0.0.0/16 mynet
     """
 
-    def __kill_node(self, idx):
+    def __kill_node__kill_node(self, idx):
         global sudo
         cmd_str = sudo + " docker kill %s" % self.node_ids[idx]
         print cmd_str
