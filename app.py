@@ -36,7 +36,6 @@ class BaseClass():
         if self.VIEW_init is not None:
             self.VIEW_list = self.VIEW_init.split(',')
 
-
 b = BaseClass()
 
 ###########################################
@@ -83,10 +82,6 @@ def initVIEW():
         if b.VIEW_list[i] == b.my_IP:
             b.part_id = part_ID
         update(b.VIEW_list[i], part_ID)
-
-    # if b.my_IP not in b.proxy_array:
-    #     b.world_view = b.part_dic[b.part_id]
-
 
 ###########################################################
 # functon called in the heartbeat for syncing the kvstores
@@ -239,8 +234,6 @@ class BasicGetPut(Resource):
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
 
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
-
-
 
         ########################################
         # Check if their causal payload is strictly greater than or equal to mine, or if the key is new to me
@@ -560,7 +553,6 @@ def demoteNode(demote_node_IP):
     return
     # else, since I'm newer than others, when it comes my turn to ping others,
     # I'll eventually demote someone else. Therefore, do nothing
-
 
 ############################################
 # all messaging functions
