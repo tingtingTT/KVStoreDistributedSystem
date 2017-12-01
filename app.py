@@ -728,6 +728,44 @@ def ping(hosts):
         responses = [os.system("ping -c 1 "+IP+" -W 1") for IP in IPs]
         return dict(zip(hosts, responses))
 ###############################################################
+class Kv_Store(Resource):
+    class get_partition_id(Resource):
+        #A GET request on "/kv-store/get_partition_id"
+        # "result":"success",
+        # "partition_id": 3,
+        def get(self):
+            return jsonify({'result':'success','partition_id': b.my_partition_id})
+    class get_all_partition_ids(Resource):
+        #A GET request on "/kv-store/get_all_partition_ids"
+        # "result":"success",
+        # "partition_id_list": [0,1,2,3]
+        def get(self):
+            counter = 0
+            N = len(b.VIEW_list)
+            numPart = N/b.K
+            ID = 0
+            part_list = []
+            while(counter < len(self.partition_view)-1):
+                part_list.append(ID)
+                ID += 1
+                counter += b.K
+            return jsonify({'result':'success','partition_id_list': part_list})
+    class get_partition_members(Resource):
+        #A GET request on "/kv-store/get_partition_members" with data payload "partition_id=<partition_id>"
+        # returns a list of nodes in the partition. For example the following curl request curl -X GET
+        # http://localhost:8083/kv-store/get_partition_members -d 'partition_id=1' will return a list of nodes in the partition with id 1.
+        def get(self):
+            data = request.form.to_dict()
+            try:
+                part_id = data['partition_id']
+            except KeyError:
+                return getValueForKeyError()
+
+            try:
+                id_list = b.node_ID_dic[part_id]
+            except KeyError:
+                return getValueForKeyError()
+            return jsonify({"result":"success","partition_members":id_list})
 
 # resource method called
 api.add_resource(BasicGetPut, '/kv-store/<string:key>')
@@ -736,6 +774,9 @@ api.add_resource(GetAllReplicas, '/kv-store/get_all_replicas')
 api.add_resource(UpdateView, '/kv-store/update_view')
 api.add_resource(UpdateDatas, '/update_datas')
 api.add_resource(ResetData, '/reset_data')
+api.add_resource(Kv_Store.get_partition_id,'/kv-store/get_partition_id')
+api.add_resource(Kv_Store.get_all_partition_ids,'/kv-store/get_all_partition_ids')
+apit.add_resource(Kv_store.get_partition_members,'/kv-store/get_partition_members')
 # helper API calls
 api.add_resource(GetNodeState, '/getNodeState')
 api.add_resource(AddNode, '/addNode')
