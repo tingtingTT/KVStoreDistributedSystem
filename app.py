@@ -344,6 +344,8 @@ class UpdateView(Resource):
             # automatically add node as proxy
             if add_node_ip_port not in b.world_view:
                 update(add_node_ip_port)
+                b.proxy_array += 1
+
                 # give the brand new node its attributes using current node's data
                 b.proxy_array.append(add_node_ip_port)
                 requests.put('http://'+ add_node_ip_port +'/update_datas',data={
@@ -354,7 +356,7 @@ class UpdateView(Resource):
                 'node_ID_dic':json.dumps(b.node_ID_dic),
                 'view_vector_clock':'.'.join(map(str,b.view_vector_clock)),
                 'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
-                'num_live_nodes':str(len(b.replica_array) + len(b.proxy_array))
+                'num_live_nodes': (getReplicaArr() + getProxyArr())
                 })
                 # not already added
                 # tell all nodes in view, add the new node
