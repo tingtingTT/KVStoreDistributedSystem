@@ -115,6 +115,7 @@ def heartbeat():
         if(node != b.my_IP):
             gossip(node)
     worldSync()
+    partitionChange()
     time.sleep(.050) #seconds
 
 ####################################################################################
@@ -153,6 +154,24 @@ def worldSync():
             # case when a node is removed from replica array, we are not pinging it anyway cause it is not in our view
             elif node in b.proxy_array and len(b.replica_array)<b.K:
                 promoteNode(node)
+
+
+def partitionChange():
+
+    if len(getProxyArr()>=K):
+        // form new partition
+        // assign first K proxies to new partition
+        // update part_id_dic for all partitions
+        // redistribute keys
+
+    elif len(getReplicaArr() < K):
+        // reassign part_dic ids
+        // assign leftover nodes to partition 0
+
+def redistributeKeys():
+    
+
+
 
 
 def isProxy():
