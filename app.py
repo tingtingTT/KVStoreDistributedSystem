@@ -752,6 +752,7 @@ class Kv_Store(Resource):
         def get(self):
             part_keys = [key for key in b.part_dic]
             return jsonify({'result':'success','partition_id_list': part_keys})
+
     class get_partition_members(Resource):
         #A GET request on "/kv-store/get_partition_members" with data payload "partition_id=<partition_id>"
         # returns a list of nodes in the partition. For example the following curl request curl -X GET
@@ -761,10 +762,10 @@ class Kv_Store(Resource):
             try:
                 part_id = data['partition_id']
             except KeyError:
-                return getValueForKeyError()
+                return invalidInput()#getValueForKeyError()
 
             try:
-                id_list = b.node_ID_dic[int(part_id)]
+                id_list = b.part_dic[int(part_id)]
             except KeyError:
                 return getValueForKeyError()
             return jsonify({"result":"success","partition_members":id_list})
@@ -787,7 +788,6 @@ api.add_resource(Views, '/views')
 api.add_resource(Availability, '/availability')
 api.add_resource(GetKeyDetails, '/getKeyDetails/<string:key>')
 api.add_resource(ChangeView, '/changeView')
-
 
 
 if __name__ == '__main__':
