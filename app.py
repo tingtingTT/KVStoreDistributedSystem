@@ -62,8 +62,8 @@ def initVIEW():
             b.part_id = part_ID
         update(b.VIEW_list[i], part_ID)
 
-    # if b.my_IP not in b.proxy_array:
-    #     b.world_view = b.part_dic[b.part_id]
+    if b.my_IP not in b.proxy_array:
+        b.world_view = b.part_dic[b.part_id]
 
 
 

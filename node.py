@@ -5,10 +5,11 @@ class Node():
     def __init__(self):
         self.kv_store={} # key:[value, time_stamp]
         self.node_ID_dic={} # ip_port: node_ID
-        self.replica_array={} # part_id: replica_array
+        self.part_dic={} # part_id: replica_array
         self.world_view= [] # change in initView
         self.view_vector_clock=[0]*8 # vector clock of the world. Used for gossip
         self.kv_store_vector_clock=[0]*8 # is the pay load
+        self.replica_array = [] # a list of current replicas IP:Port
         self.proxy_array=[] # a list of current proxies  IP:Port
         self.part_id = -1
         # get variables form ENV variables
