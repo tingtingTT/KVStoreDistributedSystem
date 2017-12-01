@@ -59,7 +59,9 @@ print('status code: ',r)
 j = r.json()
 print(j)
 
-# Case B: A GET request on "/kv-store/get_partition_id" returns the partition id where the node belongs to.
+#Case B.1: If one node is removed, that partition can no longer operate,
+
+# Case B.2: A GET request on "/kv-store/get_partition_id" returns the partition id where the node belongs to.
 # For example, the following curl request curl -X GET http://localhost:8083/kv-store/get_partition_id returns
 # the id of the node that we can access via localhost:8083. A successful response looks like:
 r = requests.get('http://localhost:8081/kv-store/get_partition_id')
