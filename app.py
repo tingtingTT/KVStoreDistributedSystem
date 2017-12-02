@@ -155,6 +155,24 @@ def worldSync():
 def isProxy():
     return (b.my_IP in b.proxy_array)
 
+class PartitionView(Resource):
+    def put(self):
+        # Check for valid input
+        if keyCheck(key) == False:
+            return invalidInput()
+        # Get request data
+        data = request.form.to_dict()
+
+        try:
+            value = data['val']
+            sender_kv_store_vector_clock = data['causal_payload']
+        except KeyError:
+            return cusError('incorrect key for dict',404)
+
+        my_time = time.time()
+        b.kv_store[key] = (value, my_time)
+        b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+        return putNewKey(my_time)
 ######################################
 # class for GET key and PUT key
 ######################################
@@ -233,15 +251,16 @@ class BasicGetPut(Resource):
         # In this case, its the client's first write, so do it
         ########################################
         if sender_kv_store_vector_clock == '':
-            my_time = time.time()
-            ranpart = randint(0, )
+            up = 1
+            while(up != 0):
+                ranpart = random.randint(0,len(b.part_dic))
+                partlength = random.randint(0, len(b.part_dic[ranpart][0]))
+                # random part_id, replica arr, random node
+                node = b.part_dic[ranpart][0][partlength]
+                up = ping(node)[1]
 
-            b.kv_store[key] = (value, my_time)
-            # random chose one if it self then don't forward
-
-            randpart = randint(0, )
-            return putNewKey(my_time)
-
+            r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+            return make_response(jsonify(r.json()), r.status_code))
 
 
 ############################################
@@ -738,6 +757,7 @@ api.add_resource(BasicGetPut, '/kv-store/<string:key>')
 api.add_resource(GetNodeDetails, '/kv-store/get_node_details')
 api.add_resource(GetAllReplicas, '/kv-store/get_all_replicas')
 api.add_resource(UpdateView, '/kv-store/update_view')
+api.add_resource(PartitionView, '/partition_view')
 api.add_resource(UpdateDatas, '/update_datas')
 api.add_resource(ResetData, '/reset_data')
 api.add_resource(GetPartitionId, '/kv-store/get_partition_id')
