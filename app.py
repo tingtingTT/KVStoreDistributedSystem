@@ -643,7 +643,7 @@ def addSameNode():
     return response
 # add node successful
 def addNodeSuccess(node_ID):
-    response = jsonify({'msg': 'success', 'node_id': node_ID, 'number_of_nodes': len(getProxyArr()) + len(getReplicaArr())})
+    response = jsonify({'msg': 'success', 'number_of_partitions': len(b.part_dic)})
     response.status_code = 200
     return response
 
