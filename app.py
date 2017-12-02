@@ -831,7 +831,6 @@ api.add_resource(ResetData, '/reset_data')
 api.add_resource(GetPartitionId,'/kv-store/get_partition_id')
 api.add_resource(GetAllPartitionIds,'/kv-store/get_all_partition_ids')
 api.add_resource(GetPartitionMembers,'/kv-store/get_partition_members')
-api.add_resource(PartitionView, '/partition_view/<string:key>')
 # helper API calls
 api.add_resource(GetNodeState, '/getNodeState')
 api.add_resource(AddNode, '/addNode')
