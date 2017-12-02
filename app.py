@@ -186,12 +186,6 @@ def syncWorldProx():
                 for node in replicas:
                     requests.put('http://' + node + '/updateWorldProxy', data = {'proxy_array': ','.join(getProxyArr()), 'part_id': b.my_part_id})
 
-
-
-
-
-
-
 # def partitionChange():
 #
 #     # if len(getProxyArr()>=K):
