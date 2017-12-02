@@ -98,6 +98,9 @@ def initVIEW():
                 current_proxy = b.VIEW_list[b.K * numPart + 1 + i]
                 b.world_proxy[current_proxy] = 0
 
+    if getReplicaArr is not None and b.my_part_id >= 0:
+        b.partition_view = getReplicaArr() + getProxyArr()
+
     return
 
 
@@ -175,13 +178,13 @@ def worldSync():
 
 def syncWorldProx():
     my_proxies = getProxyArr()
-    if my_proxies is not None:
+    if len(my_proxies) > 0:
         for partition_id in b.part_dic:
             if partition_id != b.my_part_id:
                 # make API call to first replica in that id
                 replicas = b.part_dic[partition_id]
                 for node in replicas:
-                    requests.put('http://' + node + '/updateWorldProxy', data = {'proxy_array': ','.join(getProxyArr()), 'part_id': b.part_id})
+                    requests.put('http://' + node + '/updateWorldProxy', data = {'proxy_array': ','.join(getProxyArr()), 'part_id': b.my_part_id})
 
 
 
@@ -391,10 +394,10 @@ class UpdateWorldProxy(Resource):
     def put(self):
         data = request.form.to_dict()
         their_proxies = data['proxy_array'].split(',')
-        their_id = data['part_id']
+        their_id = int(data['part_id'])
 
         # Take out everything we know about thier proxies
-        for node in b.world_proxy:
+        for node in b.world_proxy.keys():
             if b.world_proxy[node] == their_id:
                 del b.world_proxy[node]
 
@@ -587,7 +590,7 @@ class GetKeyDetails(Resource):
 ######################################
 class GetNodeState(Resource):
     def get(self):
-        return jsonify({'my_part_id':b.my_part_id, 'part_dic': b.part_dic, 'world_proxy': b.world_proxy, 'partition_members': getReplicaArr() + getProxyArr(), 'proxy_array': getProxyArr(), 'replica_array': getReplicaArr(),
+        return jsonify({'my_part_id':b.my_part_id, 'part_dic': b.part_dic, 'world_proxy': b.world_proxy, 'partition_view': b.partition_view, 'proxy_array': getProxyArr(), 'replica_array': getReplicaArr(),
                 'kv_store': b.kv_store, 'node_ID_dic': b.node_ID_dic, 'part_clock': b.part_clock,
                 'kv_store_vector_clock': '.'.join(map(str,b.kv_store_vector_clock)), 'node_ID': b.node_ID_dic[b.my_IP], 'is_proxy': isProxy(), 'my_IP': b.my_IP})
         # return:
