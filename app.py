@@ -200,18 +200,20 @@ def getProxyArr():
 # class for PUT key after random node is chosen
 ##############################################
 class PartitionView(Resource):
-    def put(self):
+    def put(self,key):
         # Check for valid input
         if keyCheck(key) == False:
             return invalidInput()
-        # Get request data
         data = request.form.to_dict()
+        try:
+            sender_kv_store_vector_clock = data['causal_payload']
+        except KeyError:
+            return cusError('causal_payload key not provided',404)
 
         try:
             value = data['val']
-            sender_kv_store_vector_clock = data['causal_payload']
         except KeyError:
-            return cusError('incorrect key for dict',404)
+            return cusError('val key not provided',404)
 
         my_time = time.time()
         b.kv_store[key] = (value, my_time)
@@ -306,12 +308,12 @@ class BasicGetPut(Resource):
             up = 1
             while(up != 0):
                 ranpart = random.randint(0,len(b.part_dic)-1)
-                partlength = random.randint(0, len(b.part_dic[ranpart][0])-1)
+                partID = random.randint(0, len(b.part_dic[ranpart][0])-1)
                 # random part_id, replica arr, random node
-                node = b.part_dic[ranpart][0][partlength]
+                node = b.part_dic[ranpart][0][partID]
                 IP = node.split(':')[0]
                 up = os.system("ping -c 1 "+IP+" -W 1")
-            r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+            r = requests.put('http://'+'10.0.0.23:8080'+'/partition_view/' + key, data=request.form)
             return make_response(jsonify(r.json()), r.status_code)
 
         # sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
@@ -837,7 +839,7 @@ api.add_resource(Views, '/views')
 api.add_resource(Availability, '/availability')
 api.add_resource(GetKeyDetails, '/getKeyDetails/<string:key>')
 api.add_resource(ChangeView, '/changeView')
-
+api.add_resource(PartitionView,'/partition_view')
 
 if __name__ == '__main__':
     initVIEW()
