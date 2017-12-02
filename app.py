@@ -110,10 +110,7 @@ def heartbeat():
         if(node != b.my_IP):
             gossip(node)
     worldSync()
-<<<<<<< HEAD
-=======
     #partitionChange()
->>>>>>> 07e457783958fa36896a363ffca03e40d22d123f
     time.sleep(.050) #seconds
 
 ####################################################################################
@@ -415,14 +412,9 @@ class ResetData(Resource):
         b.node_ID_dic={} # ip_port: node_ID
         b.partition_view=[]
         b.kv_store_vector_clock=[0]*8 # is the pay load
-<<<<<<< HEAD
-        b.replica_array=[] # a list of current replicas IP:Port
-        b.proxy_array=[] # a list of current proxies  IP:Port
-=======
         b.part_dic[b.my_part_id][0]=[] # a list of current replicas IP:Port
         b.part_dic[b.my_part_id][1]=[] # a list of current proxies  IP:Port
         b.part_clock = 0
->>>>>>> 07e457783958fa36896a363ffca03e40d22d123f
 
 #######################################
 # class for getting key in gossip --> helper
@@ -507,19 +499,11 @@ def promoteNode(promote_node_IP):
     if promote_node_IP in b.proxy_array:
         b.proxy_array.remove(promote_node_IP) # remove node in prx list
     # ChangeView on node
-<<<<<<< HEAD
-    res = requests.put("http://"+promote_node_IP+"/changeView", data={'world_view':','.join(b.world_view),
-    'replica_array':','.join(b.replica_array),
-    'proxy_array':','.join(b.proxy_array),
-    'num_live_nodes': str(len(b.replica_array) + len(b.proxy_array)),
-    'node_ID_dic': json.dumps(b.node_ID_dic)})
-=======
     res = requests.put("http://"+promote_node_IP+"/changeView", data={'partition_view':','.join(b.partition_view),
     'replica_array':','.join(b.part_dic[b.my_part_id][0]),
     'proxy_array':','.join(b.part_dic[b.my_part_id][1]),
     'node_ID_dic': json.dumps(b.node_ID_dic),
     'part_clock': b.part_clock})
->>>>>>> 07e457783958fa36896a363ffca03e40d22d123f
     resp = res.json()
     # Update d.world_view
     b.world_view = resp['world_view']
@@ -532,15 +516,6 @@ def demoteNode(demote_node_IP):
     # only replica nodes come into this func
     # remove me iff my clock is behind others
     # if checkLessEq(node_kv_clock, b.kv_store_vector_clock):
-<<<<<<< HEAD
-    if demote_node_IP in b.replica_array:
-        b.replica_array.remove(demote_node_IP)
-    b.proxy_array.append(demote_node_IP)
-    res = requests.put("http://"+demote_node_IP+"/changeView", data={'world_view':','.join(b.world_view),
-    'replica_array':','.join(b.replica_array),
-    'proxy_array':','.join(b.proxy_array),
-    'num_live_nodes': len(b.replica_array) + len(b.proxy_array),
-=======
     if demote_node_IP in b.part_dic[b.my_part_id][0]:
         (b.part_dic[b.my_part_id][0]).remove(demote_node_IP)
     (b.part_dic[b.my_part_id][1]).append(demote_node_IP)
@@ -548,7 +523,6 @@ def demoteNode(demote_node_IP):
     'replica_array':','.join(b.part_dic[b.my_part_id][0]),
     'proxy_array':','.join(b.part_dic[b.my_part_id][1]),
     'part_clock': b.part_clock,
->>>>>>> 07e457783958fa36896a363ffca03e40d22d123f
     'node_ID_dic': json.dumps(b.node_ID_dic)})
     resp = res.json()
     # Update b.world_view
@@ -567,13 +541,13 @@ def demoteNode(demote_node_IP):
 # get a node info successfully
 def getSuccess(value, time_stamp):
     num_nodes_in_view = len(b.world_view)
-    response = jsonify({'result': 'success', 'value': value, 'node_id': b.node_ID_dic[b.my_IP], 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
+    response = jsonify({'result': 'success', 'value': value,'partition_id': b.my_part_id, 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
     response.status_code = 200
     return response
 
 # put value for a key successfullys
 def putNewKey(time_stamp):
-    response = jsonify({'result': 'success', 'node_id': b.node_ID_dic[b.my_IP], 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
+    response = jsonify({'result': 'success', 'partition_id': b.my_part_id, 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
     response.status_code = 201
     return response
 
