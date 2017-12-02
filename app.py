@@ -62,6 +62,7 @@ def update(add_node_ip_port, part_id):
 
     # initialize part_dic
     if part_id in b.part_dic:
+        b.partition_view.append(add_node_ip_port)
         if len(b.part_dic[part_id][0]) < b.K:
             b.part_dic[part_id][0].append(add_node_ip_port)
         else:
@@ -140,24 +141,19 @@ def worldSync():
 
     for node in b.partition_view:
         if res[node] != 0: #if the ping result is saying the node is down
-            if node in b.part_dic[b.my_part_id][0]:
-                (b.part_dic[b.my_part_id][0]).remove(node)
-                if len(b.part_dic[b.my_part_id][0])<b.K and len(b.part_dic[b.my_part_id][1])>0:
-                    promoteNode(b.part_dic[b.my_part_id][1][0])
-            if node in (b.part_dic[b.my_part_id][1]):
-                (b.part_dic[b.my_part_id][1]).remove(node)
+            if node in getReplicaArr():
+                b.part_dic[b.my_part_id][0].remove(node)
+                if len(getReplicaArr())<b.K and len(getProxyArr())>0:
+                    promoteNode(node)
+            if node in (getProxyArr()):
+                b.part_dic[b.my_part_id][1].remove(node)
         else:
-            if node not in b.part_dic[b.my_part_id][0] and node not in b.part_dic[b.my_part_id][1]:
-                if len(b.part_dic[b.my_part_id][0])<b.K:
+            if node not in getReplicaArr() and node not in getProxyArr():
+                if len(getReplicaArr())<b.K:
                     promoteNode(node)
-                elif len(b.part_dic[b.my_part_id][0])==b.K:
-                    # response = requests.get('http://'+node+"/getNodeState")
-                    # res = response.json()
-                    # node_kv_store = res['kv_store']
-                    demoteNode(node)
             # case when a node is removed from replica array, we are not pinging it anyway cause it is not in our view
-            elif node in b.part_dic[b.my_part_id][1] and len(b.part_dic[b.my_part_id][0])<b.K:
-                    promoteNode(node)
+            elif node in getProxyArr() and len(getReplicaArr())<b.K:
+                promoteNode(node)
 
 
 # def partitionChange():
@@ -431,10 +427,11 @@ class UpdateView(Resource):
             else:
                 if add_node_ip_port in getReplicaArr():
                     b.part_dic[b.my_part_id][0].remove(add_node_ip_port)
+                    b.partition_view.remove(add_node_ip_port)
                 elif add_node_ip_port in getProxyArr():
                     b.part_dic[b.my_part_id][1].remove(add_node_ip_port)
                     b.world_proxy.pop(add_node_ip_port)
-
+                    b.partition_view.remove(add_node_ip_port)
                 for node in b.partition_view:
                     if node != add_node_ip_port and node != b.my_IP:
                         try:
@@ -527,7 +524,7 @@ class GetKeyDetails(Resource):
 ######################################
 class GetNodeState(Resource):
     def get(self):
-        return jsonify({'my_part_id':b.my_part_id, 'part_dic': b.part_dic, 'world_proxy': b.world_proxy, 'partition_members': getReplicaArr() + getProxyArr(), 'proxy_array': getProxyArr(), 'replica_array': getReplicaArr(),
+        return jsonify({'my_part_id':b.my_part_id, 'part_dic': b.part_dic, 'world_proxy': b.world_proxy, 'partition_members': b.partition_view, 'proxy_array': getProxyArr(), 'replica_array': getReplicaArr(),
                 'kv_store': b.kv_store, 'node_ID_dic': b.node_ID_dic, 'part_clock': b.part_clock,
                 'kv_store_vector_clock': '.'.join(map(str,b.kv_store_vector_clock)), 'node_ID': b.node_ID_dic[b.my_IP], 'is_proxy': isProxy(), 'my_IP': b.my_IP})
         # return:
