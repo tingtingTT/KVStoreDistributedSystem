@@ -258,6 +258,7 @@ class BasicGetPut(Resource):
         #if senders causal_payload is less than or equal to mine, I am as, or more up to date
         #####################################
         if checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
+
             # Check if key is in kvStore before returning
             if key in b.kv_store:
                 value = b.kv_store[key][0]
