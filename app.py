@@ -698,6 +698,41 @@ def ping(hosts):
         return dict(zip(hosts, responses))
 ###############################################################
 
+class GetPartitionId(Resource):
+    #A GET request on "/kv-store/get_partition_id"
+    # "result":"success",
+    # "partition_id": 3,
+    def get(self):
+        return jsonify({'result':'success','partition_id': b.my_part_id})
+class GetAllPartitionIds(Resource):
+    #A GET request on "/kv-store/get_all_partition_ids"
+    # "result":"success",
+    # "partition_id_list": [0,1,2,3]
+    def get(self):
+        part_keys = [key for key in b.part_dic]
+        return jsonify({'result':'success','partition_id_list': part_keys})
+
+class GetPartitionMembers(Resource):
+    #A GET request on "/kv-store/get_partition_members" with data payload "partition_id=<partition_id>"
+    # returns a list of nodes in the partition. For example the following curl request curl -X GET
+    # http://localhost:8083/kv-store/get_partition_members -d 'partition_id=1' will return a list of nodes in the partition with id 1.
+    def get(self):
+        data = request.form.to_dict()
+        try:
+            part_id = data['partition_id']
+        except KeyError:
+            return cusError('no partition_id key provided',404)
+
+        if(part_id == ''):
+            return cusError('empty partition_id',404)
+
+        try:
+            id_list = b.part_dic[int(part_id)]
+        except KeyError:
+            return cusError('partition dictionary does not have key '+part_id,404)
+
+        return jsonify({"result":"success","partition_members":id_list[0]})
+
 # resource method called
 api.add_resource(BasicGetPut, '/kv-store/<string:key>')
 api.add_resource(GetNodeDetails, '/kv-store/get_node_details')
@@ -705,6 +740,9 @@ api.add_resource(GetAllReplicas, '/kv-store/get_all_replicas')
 api.add_resource(UpdateView, '/kv-store/update_view')
 api.add_resource(UpdateDatas, '/update_datas')
 api.add_resource(ResetData, '/reset_data')
+api.add_resource(GetPartitionId, '/kv-store/get_partition_id')
+api.add_resource(GetAllPartitionIds, '/kv-store/get_all_replicas_ids')
+api.add_resource(GetPartitionMembers, '/kv-store/get_partition_members')
 # helper API calls
 api.add_resource(GetNodeState, '/getNodeState')
 api.add_resource(AddNode, '/addNode')
