@@ -175,9 +175,9 @@ def worldSync():
 # def redistributeKeys():
 #
 
-
-
-
+######################################
+# check if node is proxy or not
+######################################
 def isProxy():
     return (b.my_IP in getProxyArr())
 
@@ -258,7 +258,6 @@ class BasicGetPut(Resource):
         #if senders causal_payload is less than or equal to mine, I am as, or more up to date
         #####################################
         if checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
-
             # Check if key is in kvStore before returning
             if key in b.kv_store:
                 value = b.kv_store[key][0]
@@ -625,10 +624,67 @@ def demoteNode(demote_node_IP):
     # else, since I'm newer than others, when it comes my turn to ping others,
     # I'll eventually demote someone else. Therefore, do nothing
 
-############################################
-# all messaging functions
-######################################
+####################################################################
+# merges current vector clock with sender's vector clock
+##############################################################
+class GetPartitionId(Resource):
+    #A GET request on "/kv-store/get_partition_id"
+    # "result":"success",
+    # "partition_id": 3,
+    def get(self):
+        return jsonify({'result':'success','partition_id': b.my_part_id})
 
+####################################################################
+# merges current vector clock with sender's vector clock
+##############################################################
+class GetAllPartitionIds(Resource):
+    #A GET request on "/kv-store/get_all_partition_ids"
+    # "result":"success",
+    # "partition_id_list": [0,1,2,3]
+    def get(self):
+        part_keys = [key for key in b.part_dic]
+        return jsonify({'result':'success','partition_id_list': part_keys})
+
+####################################################################
+# merges current vector clock with sender's vector clock
+##############################################################
+class GetPartitionMembers(Resource):
+    #A GET request on "/kv-store/get_partition_members" with data payload "partition_id=<partition_id>"
+    # returns a list of nodes in the partition. For example the following curl request curl -X GET
+    # http://localhost:8083/kv-store/get_partition_members -d 'partition_id=1' will return a list of nodes in the partition with id 1.
+    def get(self):
+        data = request.form.to_dict()
+        try:
+            part_id = data['partition_id']
+        except KeyError:
+            return cusError('no partition_id key provided',404)
+
+        if(part_id == ''):
+            return cusError('empty partition_id',404)
+
+        try:
+            id_list = b.part_dic[int(part_id)]
+        except KeyError:
+            return cusError('partition dictionary does not have key '+part_id,404)
+
+        return jsonify({"result":"success","partition_members":id_list[0]})
+
+#########################################################################################
+# Sync the Partition Dictionaries between partitions. Take in part_clock and part_dic
+#############################################################################
+class SyncPartDic(Resource):
+    def put(self):
+        data = request.form.to_dict()
+        their_part_clock = data['part_clock']
+        their_part_dic = data['part_dic']
+        if b.part_clock < their_part_clock:
+            b.part_clock += 1
+            b.part_dic = their_part_dic
+        return jsonify({'part_dic':b.part_dic})
+
+####################################################
+# all messaging functions
+##############################################
 # num_nodes_in_view is the number of nodes in world view
 # get a node info successfully
 def getSuccess(value, time_stamp):
@@ -715,6 +771,7 @@ def cusError(message,code):
     response = jsonify({'result':'error','error':message})
     response.status_code = code
     return response
+
 ####################################################################
 # merges current vector clock with sender's vector clock
 ##############################################################
@@ -792,41 +849,7 @@ def ping(hosts):
         return dict(zip(hosts, responses))
 ###############################################################
 
-class GetPartitionId(Resource):
-    #A GET request on "/kv-store/get_partition_id"
-    # "result":"success",
-    # "partition_id": 3,
-    def get(self):
-        return jsonify({'result':'success','partition_id': b.my_part_id})
 
-class GetAllPartitionIds(Resource):
-    #A GET request on "/kv-store/get_all_partition_ids"
-    # "result":"success",
-    # "partition_id_list": [0,1,2,3]
-    def get(self):
-        part_keys = [key for key in b.part_dic]
-        return jsonify({'result':'success','partition_id_list': part_keys})
-
-class GetPartitionMembers(Resource):
-    #A GET request on "/kv-store/get_partition_members" with data payload "partition_id=<partition_id>"
-    # returns a list of nodes in the partition. For example the following curl request curl -X GET
-    # http://localhost:8083/kv-store/get_partition_members -d 'partition_id=1' will return a list of nodes in the partition with id 1.
-    def get(self):
-        data = request.form.to_dict()
-        try:
-            part_id = data['partition_id']
-        except KeyError:
-            return cusError('no partition_id key provided',404)
-
-        if(part_id == ''):
-            return cusError('empty partition_id',404)
-
-        try:
-            id_list = b.part_dic[int(part_id)]
-        except KeyError:
-            return cusError('partition dictionary does not have key '+part_id,404)
-
-        return jsonify({"result":"success","partition_members":id_list[0]})
 
 # resource method called
 api.add_resource(BasicGetPut, '/kv-store/<string:key>')
@@ -847,6 +870,7 @@ api.add_resource(Availability, '/availability')
 api.add_resource(GetKeyDetails, '/getKeyDetails/<string:key>')
 api.add_resource(ChangeView, '/changeView')
 api.add_resource(PartitionView,'/partition_view/<string:key>')
+api.add_resource(SnycPartDic,'/sync_part_dic/<string:key>') # part_id and part_clock
 
 if __name__ == '__main__':
     initVIEW()
