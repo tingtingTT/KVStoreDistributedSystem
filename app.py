@@ -957,7 +957,7 @@ api.add_resource(GetKeyDetails, '/getKeyDetails/<string:key>')
 api.add_resource(ChangeView, '/changeView')
 api.add_resource(UpdateWorldProxy, '/updateWorldProxy')
 api.add_resource(PartitionView,'/partition_view/<string:key>')
-api.add_resource(SnycPartDic,'/sync_part_dic/<string:key>') # part_id and part_clock
+api.add_resource(SnycPartDic,'/sync_part_dic') # part_id and part_clock
 
 if __name__ == '__main__':
     initVIEW()
