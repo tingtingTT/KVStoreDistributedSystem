@@ -67,8 +67,6 @@ def update(add_node_ip_port, part_id):
         else:
             b.part_dic[part_id][1].append(add_node_ip_port)
             b.world_proxy[add_node_ip_port] = part_id
-            b.part_clock += 1
-
     else:
         b.part_dic[part_id] = ([add_node_ip_port], [])
 
@@ -120,7 +118,7 @@ def heartbeat():
     for node in getReplicaArr():
         if(node != b.my_IP):
             gossip(node)
-    # worldSync()
+    worldSync()
     #partitionChange()
     time.sleep(.050) #seconds
 
@@ -374,7 +372,6 @@ class RemoveNode(Resource):
         if remove_node_ip_port in b.partition_view:
             b.partition_view.remove(remove_node_ip_port)
             b.world_proxy.pop(remove_node_ip_port)
-            b.part_clock += 1
             if remove_node_ip_port in getReplicaArr():
                 b.part_dic[b.my_part_id][0].remove(remove_node_ip_port)
             elif remove_node_ip_port in getProxyArr():
@@ -432,7 +429,6 @@ class UpdateView(Resource):
             if add_node_ip_port not in (getReplicaArr() + getProxyArr()) and add_node_ip_port not in b.partition_view:
                 return removeNodeDoesNotExist()
             else:
-                b.part_clock += 1
                 if add_node_ip_port in getReplicaArr():
                     b.part_dic[b.my_part_id][0].remove(add_node_ip_port)
                 elif add_node_ip_port in getProxyArr():
@@ -459,7 +455,6 @@ class UpdateDatas(Resource):
         b.kv_store = json.loads(data['kv_store'])
         b.node_ID_dic = json.loads(data['node_ID_dic'])
         b.part_dic = json.loads(data['part_dic'])
-        b.part_clock = data['part_clock']
         b.world_proxy = json.loads(data['world_proxy'])
         b.kv_store_vector_clock = map(int,data['kv_store_vector_clock'].split('.'))
 
