@@ -378,9 +378,9 @@ class BasicGetPut(Resource):
         up = 1
         while(up != 0):
             ranpart = random.randint(0,len(b.part_dic)-1)
-            partID = random.randint(0, len(b.part_dic[ranpart][0])-1)
+            partID = random.randint(0, len(b.part_dic[ranpart])-1)
             # random part_id, replica arr, random node
-            node = b.part_dic[ranpart][0][partID]
+            node = b.part_dic[ranpart][partID]
             # dont need to ping itself
             if(node is b.my_IP):
                 up = 0
@@ -450,7 +450,7 @@ class ChangeView(Resource):
     def put(self):
         data = request.form.to_dict()
         b.partition_view = list(set(data['partition_view'].split(','))|set(b.partition_view))
-        b.part_dic[b.my_part_id][0] = data['replica_array'].split(',')
+        b.part_dic[b.my_part_id] = data['replica_array'].split(',')
         b.node_ID_dic = json.loads(data['node_ID_dic'])
         return jsonify({'partition_view': b.partition_view})
 
@@ -500,7 +500,7 @@ class RemoveNode(Resource):
             del b.world_proxy[remove_node_ip_port]
             b.part_clock += 1
             if remove_node_ip_port in getReplicaArr():
-                b.part_dic[b.my_part_id][0].remove(remove_node_ip_port)
+                b.part_dic[b.my_part_id].remove(remove_node_ip_port)
             elif remove_node_ip_port in getProxyArr():
                 del b.world_proxy[remove_node_ip_port]
         return jsonify({'node': b.my_IP, 'remove_ip_port': remove_node_ip_port})
@@ -598,8 +598,8 @@ class ResetData(Resource):
         b.node_ID_dic={} # ip_port: node_ID
         b.partition_view=[]
         b.kv_store_vector_clock=[0]*8 # is the pay load
-        b.part_dic[b.my_part_id][0]=[] # a list of current replicas IP:Port
-        b.part_dic[b.my_part_id][1]=[] # a list of current proxies  IP:Port
+        b.part_dic[b.my_part_id]=[] # a list of current replicas IP:Port
+        b.world_proxy[b.my_part_id]=[] # a list of current proxies  IP:Port
         b.part_clock = 0
 
 #######################################
@@ -919,7 +919,7 @@ class GetPartitionMembers(Resource):
         except KeyError:
             return cusError('partition dictionary does not have key '+part_id,404)
 
-        return jsonify({"result":"success","partition_members":id_list[0]})
+        return jsonify({"result":"success","partition_members":id_list})
 
 # resource method called
 api.add_resource(BasicGetPut, '/kv-store/<string:key>')
