@@ -253,7 +253,7 @@ class BasicGetPut(Resource):
                 except:
                     pass
 
-        # sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+        sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
         #####################################
         #if senders causal_payload is less than or equal to mine, I am as, or more up to date
         #####################################
