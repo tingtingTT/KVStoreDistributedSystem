@@ -113,7 +113,7 @@ def heartbeat():
         if(node != b.my_IP):
             gossip(node)
     worldSync()
-    partitionChange()
+    #partitionChange()
     time.sleep(.050) #seconds
 
 ####################################################################################
@@ -600,13 +600,13 @@ def demoteNode(demote_node_IP):
 # get a node info successfully
 def getSuccess(value, time_stamp):
     num_nodes_in_view = len(b.partition_view)
-    response = jsonify({'result': 'success', 'value': value, 'node_id': b.node_ID_dic[b.my_IP], 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
+    response = jsonify({'result': 'success', 'value': value, 'partition_id': b.my_part_id, 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
     response.status_code = 200
     return response
 
 # put value for a key successfullys
 def putNewKey(time_stamp):
-    response = jsonify({'result': 'success', 'node_id': b.node_ID_dic[b.my_IP], 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
+    response = jsonify({'result': 'success', 'partition_id': b.my_part_id, 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
     response.status_code = 201
     return response
 
