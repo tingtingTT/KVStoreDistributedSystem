@@ -113,7 +113,7 @@ def heartbeat():
         if(node != b.my_IP):
             gossip(node)
     worldSync()
-    partitionChange()
+    #partitionChange()
     time.sleep(.050) #seconds
 
 ####################################################################################
@@ -209,10 +209,10 @@ class BasicGetPut(Resource):
         try:
             sender_kv_store_vector_clock = data['causal_payload']
         except KeyError:
-            return getValueForKeyError()
+            return cusError('causal_payload key not provided',404)
 
         if sender_kv_store_vector_clock == '':
-            return getValueForKeyError()
+            return cusError('empty causal_payload',404)
 
         if isProxy():
             for node in getReplicaArr():
@@ -245,8 +245,6 @@ class BasicGetPut(Resource):
                     return getSuccess(value, my_time)
     # put key with data fields "val = value" and "causal_payload = causal_payload"
     def put(self, key):
-        from flask import request
-
         # Check for valid input
         if keyCheck(key) == False:
             return invalidInput()
@@ -254,10 +252,14 @@ class BasicGetPut(Resource):
         data = request.form.to_dict()
 
         try:
-            value = data['val']
             sender_kv_store_vector_clock = data['causal_payload']
         except KeyError:
-            return cusError('incorrect key for dict',404)
+            return cusError('causal_payload key not provided',404)
+
+        try:
+            value = data['val']
+        except KeyError:
+            return cusError('val key not provided',404)
 
         if isProxy():
             for node in getReplicaArr():
@@ -300,7 +302,7 @@ class BasicGetPut(Resource):
         # Then the payloads are concurrent, so don't do the write
         ########################################
         if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
-            return putError()
+            return cusError('payloads are concurrent',404)
 
 ############################################
 # class for GET node details
@@ -383,8 +385,19 @@ class UpdateView(Resource):
         # get type is add or remove
     def put(self):
         type = request.args.get('type','')
+        if type == None:
+            return cusError('No type was specificed',404)
+
         data = request.form.to_dict()
-        add_node_ip_port = data['ip_port']
+
+        try:
+            add_node_ip_port = data['ip_port']
+        except KeyError:
+            return cusError('ip_port key not provided',404)
+
+        if add_node_ip_port == '':
+            return cusError('empty ip_port',404)
+
         if type == 'add':
             # automatically add node as proxy
             if add_node_ip_port not in b.partition_view:
@@ -600,13 +613,13 @@ def demoteNode(demote_node_IP):
 # get a node info successfully
 def getSuccess(value, time_stamp):
     num_nodes_in_view = len(b.partition_view)
-    response = jsonify({'result': 'success', 'value': value, 'node_id': b.node_ID_dic[b.my_IP], 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
+    response = jsonify({'result': 'success', 'value': value, 'partition_id': b.my_part_id, 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
     response.status_code = 200
     return response
 
 # put value for a key successfullys
 def putNewKey(time_stamp):
-    response = jsonify({'result': 'success', 'node_id': b.node_ID_dic[b.my_IP], 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
+    response = jsonify({'result': 'success', 'partition_id': b.my_part_id, 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
     response.status_code = 201
     return response
 
@@ -630,13 +643,13 @@ def getAllReplicasSuccess():
 
 # error messages
 def getValueForKeyError():
-    response = jsonify({'result': 'error', 'msg': 'no value for key'})
+    response = jsonify({'result': 'error', 'error': 'no value for key'})
     response.status_code = 404
     return response
 
 # add same node that already in view
 def addSameNode():
-    response = jsonify({'msg': 'you are adding the same node'})
+    response = jsonify({'result': 'error','error': 'you are adding the same node'})
     response.status_code = 404
     return response
 # add node successful
@@ -653,19 +666,19 @@ def removeNodeSuccess():
 
 # remove a node doesn't exist
 def removeNodeDoesNotExist():
-    response = jsonify({'msg': 'you are removing a node that does not exist'})
+    response = jsonify({'result': 'error','error': 'you are removing a node that does not exist'})
     response.status_code = 404
     return response
 
 # call get on dead node
 def onDeadNode():
-    response = jsonify({'error':'Dead Node'})
+    response = jsonify({'result': 'error','error':'Dead Node'})
     response.status_code = 404
     return response
 
 # invalid inputs
 def invalidInput():
-    response = jsonify({'result':'error','msg':'invalid key format'})
+    response = jsonify({'result':'error','error':'invalid key format'})
     response.status_code = 404
     return response
 
@@ -675,11 +688,11 @@ def putSuccess():
     return response
 
 def putError():
-    response = jsonify({'error':'invalid PUT'})
+    response = jsonify({'result': 'error','error':'invalid PUT'})
     response.status_code = 404
     return response
 def cusError(message,code):
-    response = jsonify({'error':message})
+    response = jsonify({'result':'error','error':message})
     response.status_code = code
     return response
 ####################################################################
@@ -782,12 +795,16 @@ class Kv_Store(Resource):
             try:
                 part_id = data['partition_id']
             except KeyError:
-                return invalidInput()#getValueForKeyError()
+                return cusError('no partition_id key provided',404)
+
+            if(part_id == ''):
+                return cusError('empty partition_id',404)
 
             try:
                 id_list = b.part_dic[int(part_id)]
             except KeyError:
-                return getValueForKeyError()
+                return cusError('partition dictionary does not have key'+part_id,404)
+
             return jsonify({"result":"success","partition_members":id_list})
 
 # resource method called
