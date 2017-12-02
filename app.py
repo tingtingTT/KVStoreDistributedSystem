@@ -814,9 +814,9 @@ class GetPartitionMembers(Resource):
         try:
             id_list = b.part_dic[int(part_id)]
         except KeyError:
-            return cusError('partition dictionary does not have key'+part_id,404)
+            return cusError('partition dictionary does not have key '+part_id,404)
 
-        return jsonify({"result":"success","partition_members":id_list})
+        return jsonify({"result":"success","partition_members":id_list[0]})
 
 # resource method called
 api.add_resource(BasicGetPut, '/kv-store/<string:key>')
