@@ -275,6 +275,7 @@ class BasicGetPut(Resource):
                     value = res['kv_store'][key][0]
                     my_time = res['kv_store'][key][1]
                     return getSuccess(value, my_time)
+            return getValueForKeyError()
 
     # put key with data fields "val = value" and "causal_payload = causal_payload"
     def put(self, key):
@@ -311,9 +312,14 @@ class BasicGetPut(Resource):
                 partID = random.randint(0, len(b.part_dic[ranpart][0])-1)
                 # random part_id, replica arr, random node
                 node = b.part_dic[ranpart][0][partID]
+                if(node is b.my_IP):
+                    my_time = time.time()
+                    b.kv_store[key] = (value, my_time)
+                    b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+                    return putNewKey(my_time)
                 IP = node.split(':')[0]
                 up = os.system("ping -c 1 "+IP+" -W 1")
-            r = requests.put('http://'+'10.0.0.23:8080'+'/partition_view/' + key, data=request.form)
+            r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
             return make_response(jsonify(r.json()), r.status_code)
 
         # sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
@@ -839,7 +845,7 @@ api.add_resource(Views, '/views')
 api.add_resource(Availability, '/availability')
 api.add_resource(GetKeyDetails, '/getKeyDetails/<string:key>')
 api.add_resource(ChangeView, '/changeView')
-api.add_resource(PartitionView,'/partition_view')
+api.add_resource(PartitionView,'/partition_view/<string:key>')
 
 if __name__ == '__main__':
     initVIEW()
