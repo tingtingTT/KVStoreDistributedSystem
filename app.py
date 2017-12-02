@@ -47,7 +47,7 @@ def activate_job():
         while True:
             with app.app_context():
                 time.sleep(1)
-                # heartbeat()
+                heartbeat()
     thread = threading.Thread(target=run_job)
     thread.start()
 
@@ -116,10 +116,10 @@ def gossip(IP):
 ###########################################################
 def heartbeat():
     # gossip with a random IP in the replicas array
-    for node in b.part_dic[b.my_part_id][0]:
+    for node in getReplicaArr():
         if(node != b.my_IP):
             gossip(node)
-    worldSync()
+    # worldSync()
     #partitionChange()
     time.sleep(.050) #seconds
 
@@ -246,6 +246,7 @@ class BasicGetPut(Resource):
             for node in getReplicaArr():
                 response = requests.get('http://'+node+'/getNodeState')
                 res = response.json()
+                # TODO: we will return stale data cause we are promising availability
                 if key in res['kv_store']:
                     value = res['kv_store'][key][0]
                     my_time = res['kv_store'][key][1]
@@ -317,7 +318,7 @@ class BasicGetPut(Resource):
 class GetNodeDetails(Resource):
     # check if the node is a replica or not
     def get(self):
-        if (b.my_IP in b.part_dic[b.my_part_id][1]):
+        if (b.my_IP in getProxyArr()):
             return getNodeDetailsNotReplica()
         else:
             return getNodeDetailsReplica()
@@ -649,7 +650,7 @@ def getNodeDetailsNotReplica():
 
 # there are replicas for the node
 def getAllReplicasSuccess():
-    response = jsonify({'result': 'success', 'replicas': b.part_dic[b.my_part_id][0]})
+    response = jsonify({'result': 'success', 'replicas': getReplicaArr()})
     response.status_code = 200
     return response
 
@@ -666,7 +667,7 @@ def addSameNode():
     return response
 # add node successful
 def addNodeSuccess(node_ID):
-    response = jsonify({'msg': 'success', 'node_id': node_ID, 'number_of_nodes': len(b.part_dic[b.my_part_id][0]) + len(b.part_dic[b.my_part_id][1])})
+    response = jsonify({'msg': 'success', 'node_id': node_ID, 'number_of_nodes': len(getProxyArr()) + len(getReplicaArr())})
     response.status_code = 200
     return response
 
