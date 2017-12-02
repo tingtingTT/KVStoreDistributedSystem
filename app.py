@@ -181,8 +181,6 @@ class BasicGetPut(Resource):
                     return make_response(jsonify(response.json()), response.status_code)
                 except:
                     pass
-
-        sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
         #####################################
         #if senders causal_payload is less than or equal to mine, I am as, or more up to date
         #####################################
@@ -231,8 +229,12 @@ class BasicGetPut(Resource):
         ########################################
         if sender_kv_store_vector_clock == '':
             my_time = time.time()
+            ranpart = randint(0, )
+
             b.kv_store[key] = (value, my_time)
             # random chose one if it self then don't forward
+
+            randpart = randint(0, )
             return putNewKey(my_time)
 
 
