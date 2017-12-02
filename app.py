@@ -35,7 +35,6 @@ class BaseClass():
         if self.VIEW_init is not None:
             self.VIEW_list = self.VIEW_init.split(',')
 
-
 b = BaseClass()
 
 ###########################################
@@ -62,7 +61,10 @@ def update(add_node_ip_port, part_id):
 
     # initialize part_dic
     if part_id in b.part_dic:
-        b.part_dic[part_id][0].append(add_node_ip_port)
+        if len(b.part_dic[part_id][0]) < b.K:
+            b.part_dic[part_id][0].append(add_node_ip_port)
+        else:
+            b.part_dic[part_id][1].append(add_node_ip_port)
     else:
         b.part_dic[part_id] = ([add_node_ip_port], [])
 
@@ -72,23 +74,22 @@ def update(add_node_ip_port, part_id):
 # functon to init world view using user input VIEW
 #####################################################
 def initVIEW():
-    N = len(b.VIEW_list)
-    numPart = N/b.K
-    numProx = N%b.K
+    if len(b.VIEW_list) > 0:
+        N = len(b.VIEW_list)
+        numPart = N/b.K
+        numProx = N%b.K
 
-    for i in range(0, b.K * numPart):
-        part_id = i/b.K
-        if b.VIEW_list[i] == b.my_IP:
-            b.my_part_id = part_id
-        update(b.VIEW_list[i], part_id)
+        for i in range(0, b.K * numPart):
+            part_id = i/b.K
+            if b.VIEW_list[i] == b.my_IP:
+                b.my_part_id = part_id
+            update(b.VIEW_list[i], part_id)
 
-    if numProx > 0:
-        proxies = b.VIEW_list[b.K * numPart:]
-        b.part_dic[0][1] = proxies
+        if numProx > 0:
+            proxies = b.VIEW_list[b.K * numPart:]
+            b.part_dic[0][1] = proxies
 
-    b.partition_view = getProxyArr() + getReplicaArr()
-
-
+        b.partition_view = getProxyArr() + getReplicaArr()
 
     return
 
@@ -112,6 +113,7 @@ def heartbeat():
         if(node != b.my_IP):
             gossip(node)
     worldSync()
+    partitionChange()
     time.sleep(.050) #seconds
 
 ####################################################################################
@@ -152,6 +154,24 @@ def worldSync():
                     promoteNode(node)
 
 
+# def partitionChange():
+#
+#     # if len(getProxyArr()>=K):
+#     #     # // form new partition
+#     #     # // assign first K proxies to new partition
+#     #     # // update part_id_dic for all partitions
+#     #     # // redistribute keys
+#     #
+#     # elif len(getReplicaArr() < K):
+#     #     # // reassign part_dic ids
+#     #     # // assign leftover nodes to partition 0
+#
+# def redistributeKeys():
+#
+
+
+
+
 def isProxy():
     return (b.my_IP in getProxyArr())
 
@@ -159,9 +179,16 @@ def isProxy():
 # for retrieving the rep and prox arrs
 ######################################
 def getReplicaArr():
-    return b.part_dic[b.my_part_id][0]
+    if b.part_dic[b.my_part_id][0] is not None:
+        return b.part_dic[b.my_part_id][0]
+    else:
+        return []
+
 def getProxyArr():
-    return b.part_dic[b.my_part_id][1]
+    if b.part_dic[b.my_part_id][1] is not None:
+        return b.part_dic[b.my_part_id][1]
+    else:
+        return []
 
 ######################################
 # class for GET key and PUT key
@@ -252,8 +279,6 @@ class BasicGetPut(Resource):
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
 
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
-
-
 
         ########################################
         # Check if their causal payload is strictly greater than or equal to mine, or if the key is new to me
@@ -362,19 +387,17 @@ class UpdateView(Resource):
         add_node_ip_port = data['ip_port']
         if type == 'add':
             # automatically add node as proxy
-            if add_node_ip_port not in b.world_view:
-                update(add_node_ip_port)
+            if add_node_ip_port not in b.partition_view:
+                update(add_node_ip_port, b.my_part_id)
+
                 # give the brand new node its attributes using current node's data
-                (b.part_dic[b.my_part_id][1]).append(add_node_ip_port)
                 requests.put('http://'+ add_node_ip_port +'/update_datas',data={
                 'partition_view':','.join(b.partition_view),
-                'part_dic':','.join(b.part_dic),
-                'proxy_array':','.join(b.part_dic[b.my_part_id][1]),
+                'part_dic':json.dumps(b.part_dic),
                 'kv_store':'{}',
                 'node_ID_dic':json.dumps(b.node_ID_dic),
                 'view_vector_clock':'.'.join(map(str,b.view_vector_clock)),
                 'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
-                'num_live_nodes':str(len(getReplicaArr) + len(getProxyArr))
                 })
                 # not already added
                 # tell all nodes in view, add the new node
@@ -390,16 +413,15 @@ class UpdateView(Resource):
                 return addSameNode()
         # remove a node
         elif type == 'remove':
-            if add_node_ip_port not in b.partition_view:
+            if add_node_ip_port not in (getReplicaArr() + getProxyArr()) and add_node_ip_port not in b.partition_view:
                 return removeNodeDoesNotExist()
             else:
-                b.partition_view.remove(add_node_ip_port)
                 b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
 
                 if add_node_ip_port in getReplicaArr():
-                    (b.part_dic[b.my_part_id][0]).remove(add_node_ip_port)
-                elif add_node_ip_port in b.part_dic[b.my_part_id][1]:
-                    (b.part_dic[b.my_part_id][1]).remove(add_node_ip_port)
+                    b.part_dic[b.my_part_id][0].remove(add_node_ip_port)
+                elif add_node_ip_port in getProxyArr():
+                    b.part_dic[b.my_part_id][1].remove(add_node_ip_port)
 
                 for node in b.partition_view:
                     if node != add_node_ip_port and node != b.my_IP:
@@ -417,10 +439,9 @@ class UpdateDatas(Resource):
     def put(self):
         data = request.form.to_dict()
         b.partition_view = data['partition_view'].split(',')
-        b.part_dic[b.my_part_id][0] = data['replica_array'].split(',')
-        b.part_dic[b.my_part_id][1] = data['proxy_array'].split(',')
         b.kv_store = json.loads(data['kv_store'])
         b.node_ID_dic = json.loads(data['node_ID_dic'])
+        b.part_dic = json.loads(data['part_dic'])
         b.view_vector_clock = map(int,data['view_vector_clock'].split('.'))
         b.kv_store_vector_clock = map(int,data['kv_store_vector_clock'].split('.'))
 
@@ -570,7 +591,6 @@ def demoteNode(demote_node_IP):
     return
     # else, since I'm newer than others, when it comes my turn to ping others,
     # I'll eventually demote someone else. Therefore, do nothing
-
 
 ############################################
 # all messaging functions
