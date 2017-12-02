@@ -196,6 +196,29 @@ def getProxyArr():
     else:
         return []
 
+######################################################
+# class for PUT key after random node is chosen
+##############################################
+class PartitionView(Resource):
+    def put(self):
+        # Check for valid input
+        if keyCheck(key) == False:
+            return invalidInput()
+        # Get request data
+        data = request.form.to_dict()
+
+        try:
+            value = data['val']
+            sender_kv_store_vector_clock = data['causal_payload']
+        except KeyError:
+            return cusError('incorrect key for dict',404)
+
+        my_time = time.time()
+        b.kv_store[key] = (value, my_time)
+        b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+        return putNewKey(my_time)
+
+
 ######################################
 # class for GET key and PUT key
 ######################################
@@ -228,7 +251,7 @@ class BasicGetPut(Resource):
                 except:
                     pass
 
-        sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+        # sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
         #####################################
         #if senders causal_payload is less than or equal to mine, I am as, or more up to date
         #####################################
@@ -250,18 +273,17 @@ class BasicGetPut(Resource):
                     value = res['kv_store'][key][0]
                     my_time = res['kv_store'][key][1]
                     return getSuccess(value, my_time)
+
     # put key with data fields "val = value" and "causal_payload = causal_payload"
     def put(self, key):
         # Check for valid input
         if keyCheck(key) == False:
             return invalidInput()
-        # Get request data
         data = request.form.to_dict()
-
-        try:
-            sender_kv_store_vector_clock = data['causal_payload']
-        except KeyError:
-            return cusError('causal_payload key not provided',404)
+        # try:
+        #     sender_kv_store_vector_clock = data['causal_payload']
+        # except KeyError:
+        #     return cusError('causal_payload key not provided',404)
 
         try:
             value = data['val']
@@ -281,35 +303,39 @@ class BasicGetPut(Resource):
         # In this case, its the client's first write, so do it
         ########################################
         if sender_kv_store_vector_clock == '':
-            my_time = time.time()
-            b.kv_store[key] = (value, my_time)
-            b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-            return putNewKey(my_time)
-        sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+            up = 1
+            while(up != 0):
+                ranpart = random.randint(0,len(b.part_dic))
+                partlength = random.randint(0, len(b.part_dic[ranpart][0]))
+                # random part_id, replica arr, random node
+                node = b.part_dic[ranpart][0][partlength]
+                up = ping(node)[1]
+            r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+            return make_response(jsonify(r.json()), r.status_code))
 
-        sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+        # sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
 
         ########################################
         # Check if their causal payload is strictly greater than or equal to mine, or if the key is new to me
         # If it is, do the write
         ########################################
         #return jsonify({'kv-store vector clock':kv_store_vector_clock,'sender_kv_store_vector_clock':sender_kv_store_vector_clock})
-        if (checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock)) or key not in b.kv_store:
-            my_time = time.time()
-            b.kv_store[key] = (value, my_time)
-            # this will help debugging
-            # response = jsonify({'key':kv_store[key]})
-            # return response
-            b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-            b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
-            return putNewKey(my_time)
-
-        ########################################
-        # If neither causal payload is less than or equal to the other, or if they are checkEqual
-        # Then the payloads are concurrent, so don't do the write
-        ########################################
-        if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
-            return cusError('payloads are concurrent',404)
+        # if (checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock)) or key not in b.kv_store:
+        #     my_time = time.time()
+        #     b.kv_store[key] = (value, my_time)
+        #     # this will help debugging
+        #     # response = jsonify({'key':kv_store[key]})
+        #     # return response
+        #     b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+        #     b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+        #     return putNewKey(my_time)
+        #
+        # ########################################
+        # # If neither causal payload is less than or equal to the other, or if they are checkEqual
+        # # Then the payloads are concurrent, so don't do the write
+        # ########################################
+        # if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
+        #     return cusError('payloads are concurrent',404)
 
 ############################################
 # class for GET node details
