@@ -18,11 +18,10 @@ class BaseClass():
     def __init__(self):
         self.kv_store={} # key:[value, time_stamp]
         self.node_ID_dic={} # ip_port: node_ID
-        self.part_dic={} # part_id: replica_array
-        self.partition_view=[] # change in initView
-        self.view_vector_clock=[0]*8 # vector clock of the world. Used for gossip
+        self.part_dic={} # my_part_id: replica_array
+        self.partition_view = [] # change in initView
         self.kv_store_vector_clock=[0]*8 # is the pay load
-        self.proxy_array=[] # a list of current proxies  IP:Port
+        self.part_clock = 0
         self.my_part_id = -1
         # get variables form ENV variables
         self.my_IP = os.environ.get('IPPORT', None)
@@ -62,8 +61,14 @@ def update(add_node_ip_port, part_ID):
         b.node_ID_dic[add_node_ip_port] = len(b.node_ID_dic)
 
     # initialize part_dic
-    if part_ID in b.part_dic:
-        b.part_dic[part_ID].append(add_node_ip_port)
+    if part_id in b.part_dic:
+        if len(b.part_dic[part_id][0]) < b.K:
+            b.part_dic[part_id][0].append(add_node_ip_port)
+        else:
+            b.part_dic[part_id][1].append(add_node_ip_port)
+            b.world_proxy[add_node_ip_port] = part_id
+            b.part_clock += 1
+
     else:
         b.part_dic[part_ID] = [add_node_ip_port]
 
@@ -281,14 +286,10 @@ class AddNode(Resource):
     def put(self):
         data = request.form.to_dict()
         add_node_ip_port = data['ip_port']
-        add_node_view_clock = map(int,data['view_vector_clock'].split('.'))
         # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
         if add_node_ip_port not in b.world_view:
             # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
-            update(add_node_ip_port)
-            for i in range(0,len(b.view_vector_clock)):
-                b.view_vector_clock[i]= max(b.view_vector_clock[i],add_node_view_clock[i])
-            b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+            update(add_node_ip_port, b.my_part_id)
         return jsonify({'node': b.my_IP, 'ip_port': add_node_ip_port})
 
 #########################################
@@ -300,17 +301,14 @@ class RemoveNode(Resource):
         #    return proxy_forward(request.url_rule,request.method,request.form.to_dict(),'')
         data = request.form.to_dict()
         remove_node_ip_port = data['ip_port']
-        remove_node_view_clock = map(int,data['view_vector_clock'].split('.'))
         # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
-        if remove_node_ip_port in b.world_view:
-            for i in range(0,len(b.view_vector_clock)):
-                b.view_vector_clock[i]= max(b.view_vector_clock[i],remove_node_view_clock[i])
-            b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-            b.world_view.remove(remove_node_ip_port)
-            if remove_node_ip_port in b.replica_array:
-                b.replica_array.remove(remove_node_ip_port)
-            elif remove_node_ip_port in b.proxy_array:
-                b.proxy_array.remove(remove_node_ip_port)
+        if remove_node_ip_port in b.partition_view:
+            b.partition_view.remove(remove_node_ip_port)
+            b.world_proxy.pop(remove_node_ip_port)
+            if remove_node_ip_port in getReplicaArr():
+                b.part_dic[b.my_part_id][0].remove(remove_node_ip_port)
+            elif remove_node_ip_port in getProxyArr():
+                b.part_dic[b.my_part_id][1].remove(remove_node_ip_port)
         return jsonify({'node': b.my_IP, 'remove_ip_port': remove_node_ip_port})
 
 ############################################
@@ -334,7 +332,6 @@ class UpdateView(Resource):
                 'proxy_array':','.join(b.proxy_array),
                 'kv_store':'{}',
                 'node_ID_dic':json.dumps(b.node_ID_dic),
-                'view_vector_clock':'.'.join(map(str,b.view_vector_clock)),
                 'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
                 'num_live_nodes':str(len(b.replica_array) + len(b.proxy_array))
                 })
@@ -343,7 +340,7 @@ class UpdateView(Resource):
                 for node in b.partition_view:
                     if node != add_node_ip_port and node != b.my_IP:
                         try:
-                            requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port, 'view_vector_clock': '.'.join(map(str,b.view_vector_clock))})
+                            requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
                         except requests.exceptions.ConnectionError:
                             pass
                 # add successfully, update your clock
@@ -355,18 +352,16 @@ class UpdateView(Resource):
             if add_node_ip_port not in b.partition_view:
                 return removeNodeDoesNotExist()
             else:
-                b.partition_view.remove(add_node_ip_port)
-                b.view_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-
-                if add_node_ip_port in b.replica_array:
-                    b.replica_array.remove(add_node_ip_port)
-                elif add_node_ip_port in b.proxy_array:
-                    b.proxy_array.remove(add_node_ip_port)
+                if add_node_ip_port in getReplicaArr():
+                    b.part_dic[b.my_part_id][0].remove(add_node_ip_port)
+                elif add_node_ip_port in getProxyArr():
+                    b.part_dic[b.my_part_id][1].remove(add_node_ip_port)
+                    b.world_proxy.pop(add_node_ip_port)
 
                 for node in b.partition_view:
                     if node != add_node_ip_port and node != b.my_IP:
                         try:
-                            requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port, 'view_vector_clock': '.'.join(map(str,b.view_vector_clock))})
+                            requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                         except requests.exceptions.ConnectionError:
                             pass
 
@@ -383,7 +378,8 @@ class UpdateDatas(Resource):
         b.proxy_array = data['proxy_array'].split(',')
         b.kv_store = json.loads(data['kv_store'])
         b.node_ID_dic = json.loads(data['node_ID_dic'])
-        b.view_vector_clock = map(int,data['view_vector_clock'].split('.'))
+        b.part_dic = json.loads(data['part_dic'])
+        b.world_proxy = json.loads(data['world_proxy'])
         b.kv_store_vector_clock = map(int,data['kv_store_vector_clock'].split('.'))
         b.num_live_nodes = int(data['num_live_nodes'])
 
@@ -396,8 +392,7 @@ class ResetData(Resource):
         #     return proxy_forward(request.url_rule,request.method,request.form.to_dict(),request.args)
         b.kv_store={} # key:[value, time_stamp]
         b.node_ID_dic={} # ip_port: node_ID
-        b.world_view=[]
-        b.view_vector_clock=[0]*8 # vector clock of the world. Used for gossip
+        b.partition_view=[]
         b.kv_store_vector_clock=[0]*8 # is the pay load
         b.replica_array=[] # a list of current replicas IP:Port
         b.proxy_array=[] # a list of current proxies  IP:Port
@@ -456,11 +451,10 @@ class GetKeyDetails(Resource):
 ######################################
 class GetNodeState(Resource):
     def get(self):
-        return jsonify({'part_id':b.part_id, 'part_dic': b.part_dic, 'partition_members': b.part_dic[b.part_id], 'proxy_array': b.proxy_array,
-                'kv_store': b.kv_store, 'node_ID_dic': b.node_ID_dic, 'view_vector_clock': '.'.join(map(str,b.view_vector_clock)),
-                'kv_store_vector_clock': '.'.join(map(str,b.kv_store_vector_clock)), 'num_live_nodes': len(b.world_view), 'node_ID': b.node_ID_dic[b.my_IP], 'is_proxy': b.my_IP in b.proxy_array, 'my_IP': b.my_IP})
+        return jsonify({'my_part_id':b.my_part_id, 'part_dic': b.part_dic, 'world_proxy': b.world_proxy, 'partition_members': getReplicaArr() + getProxyArr(), 'proxy_array': getProxyArr(), 'replica_array': getReplicaArr(),
+                'kv_store': b.kv_store, 'node_ID_dic': b.node_ID_dic,
+                'kv_store_vector_clock': '.'.join(map(str,b.kv_store_vector_clock)), 'node_ID': b.node_ID_dic[b.my_IP], 'is_proxy': isProxy(), 'my_IP': b.my_IP})
         # return:
-        # num_live_nodes, replica_array, proxy_array, kv_store, node_ID_dic, view_vector_clock
 ############################################
 # class for GET view details -- helper
 ######################################
