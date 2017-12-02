@@ -240,6 +240,7 @@ class PartitionView(Resource):
         # Check for valid input
         if keyCheck(key) == False:
             return invalidInput()
+
         data = request.form.to_dict()
         try:
             sender_kv_store_vector_clock = data['causal_payload']
@@ -251,10 +252,37 @@ class PartitionView(Resource):
         except KeyError:
             return cusError('val key not provided',404)
 
-        my_time = time.time()
-        b.kv_store[key] = (value, my_time)
-        b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-        return putNewKey(my_time)
+        ########################################
+        # Check for edge case where causal_payload is empty string
+        # In this case, its the client's first write, so do it
+        ########################################
+        if sender_kv_store_vector_clock == '':
+            my_time = time.time()
+            b.kv_store[key] = (value, my_time)
+            b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+            return putNewKey(my_time)
+        sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+        ########################################
+        # Check if their causal payload is strictly greater than or equal to mine, or if the key is new to me
+        # If it is, do the write
+        ########################################
+        #return jsonify({'kv-store vector clock':kv_store_vector_clock,'sender_kv_store_vector_clock':sender_kv_store_vector_clock})
+        if (checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock)) or key not in b.kv_store:
+            my_time = time.time()
+            b.kv_store[key] = (value, my_time)
+            # this will help debugging
+            # response = jsonify({'key':kv_store[key]})
+            # return response
+            b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+            b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+            return putNewKey(my_time)
+
+        ########################################
+        # If neither causal payload is less than or equal to the other, or if they are checkEqual
+        # Then the payloads are concurrent, so don't do the write
+        ########################################
+        if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
+            return cusError('payloads are concurrent',404)
 
 
 ######################################
@@ -346,50 +374,54 @@ class BasicGetPut(Resource):
                 except:
                     pass
 
+        # randomly find a replica thats online
+        up = 1
+        while(up != 0):
+            ranpart = random.randint(0,len(b.part_dic)-1)
+            partID = random.randint(0, len(b.part_dic[ranpart])-1)
+            # random part_id, replica arr, random node
+            node = b.part_dic[ranpart][partID]
+            # dont need to ping itself
+            if(node is b.my_IP):
+                up = 0
+            else:
+                IP = node.split(':')[0]
+                up = os.system("ping -c 1 "+IP+" -W 1")
+
+        if(node is not b.my_IP):
+            r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+            return make_response(jsonify(r.json()), r.status_code)
+
         ########################################
         # Check for edge case where causal_payload is empty string
         # In this case, its the client's first write, so do it
         ########################################
         if sender_kv_store_vector_clock == '':
-            up = 1
-            while(up != 0):
-                ranpart = random.randint(0,len(b.part_dic)-1)
-                partID = random.randint(0, len(b.part_dic[ranpart][0])-1)
-                # random part_id, replica arr, random node
-                node = b.part_dic[ranpart][0][partID]
-                if(node is b.my_IP):
-                    my_time = time.time()
-                    b.kv_store[key] = (value, my_time)
-                    b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-                    return putNewKey(my_time)
-                IP = node.split(':')[0]
-                up = os.system("ping -c 1 "+IP+" -W 1")
-            r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
-            return make_response(jsonify(r.json()), r.status_code)
-
-        # sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
-
+            my_time = time.time()
+            b.kv_store[key] = (value, my_time)
+            b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+            return putNewKey(my_time)
+        sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
         ########################################
         # Check if their causal payload is strictly greater than or equal to mine, or if the key is new to me
         # If it is, do the write
         ########################################
         #return jsonify({'kv-store vector clock':kv_store_vector_clock,'sender_kv_store_vector_clock':sender_kv_store_vector_clock})
-        # if (checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock)) or key not in b.kv_store:
-        #     my_time = time.time()
-        #     b.kv_store[key] = (value, my_time)
-        #     # this will help debugging
-        #     # response = jsonify({'key':kv_store[key]})
-        #     # return response
-        #     b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-        #     b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
-        #     return putNewKey(my_time)
-        #
-        # ########################################
-        # # If neither causal payload is less than or equal to the other, or if they are checkEqual
-        # # Then the payloads are concurrent, so don't do the write
-        # ########################################
-        # if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
-        #     return cusError('payloads are concurrent',404)
+        if (checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock)) or key not in b.kv_store:
+            my_time = time.time()
+            b.kv_store[key] = (value, my_time)
+            # this will help debugging
+            # response = jsonify({'key':kv_store[key]})
+            # return response
+            b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+            b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+            return putNewKey(my_time)
+        ########################################
+        # If neither causal payload is less than or equal to the other, or if they are checkEqual
+        # Then the payloads are concurrent, so don't do the write
+        ########################################
+        if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
+            return cusError('payloads are concurrent',404)
 
 ############################################
 # class for GET node details
@@ -418,7 +450,7 @@ class ChangeView(Resource):
     def put(self):
         data = request.form.to_dict()
         b.partition_view = list(set(data['partition_view'].split(','))|set(b.partition_view))
-        b.part_dic[b.my_part_id][0] = data['replica_array'].split(',')
+        b.part_dic[b.my_part_id] = data['replica_array'].split(',')
         b.node_ID_dic = json.loads(data['node_ID_dic'])
         return jsonify({'partition_view': b.partition_view})
 
@@ -468,7 +500,7 @@ class RemoveNode(Resource):
             del b.world_proxy[remove_node_ip_port]
             b.part_clock += 1
             if remove_node_ip_port in getReplicaArr():
-                b.part_dic[b.my_part_id][0].remove(remove_node_ip_port)
+                b.part_dic[b.my_part_id].remove(remove_node_ip_port)
             elif remove_node_ip_port in getProxyArr():
                 del b.world_proxy[remove_node_ip_port]
         return jsonify({'node': b.my_IP, 'remove_ip_port': remove_node_ip_port})
@@ -566,8 +598,8 @@ class ResetData(Resource):
         b.node_ID_dic={} # ip_port: node_ID
         b.partition_view=[]
         b.kv_store_vector_clock=[0]*8 # is the pay load
-        b.part_dic[b.my_part_id][0]=[] # a list of current replicas IP:Port
-        b.part_dic[b.my_part_id][1]=[] # a list of current proxies  IP:Port
+        b.part_dic[b.my_part_id]=[] # a list of current replicas IP:Port
+        b.world_proxy[b.my_part_id]=[] # a list of current proxies  IP:Port
         b.part_clock = 0
 
 #######################################
@@ -910,8 +942,6 @@ def ping(hosts):
         responses = [os.system("ping -c 1 "+IP+" -W 1") for IP in IPs]
         return dict(zip(hosts, responses))
 ###############################################################
-
-
 
 # resource method called
 api.add_resource(BasicGetPut, '/kv-store/<string:key>')
