@@ -236,6 +236,15 @@ def getProxyArr():
 # class for PUT key after random node is chosen
 ##############################################
 class PartitionView(Resource):
+    def get(self,key):
+        if keyCheck(key) == False:
+            return invalidInput()
+        else:
+            if(key in b.kv_store):
+                found = 'True'
+            else:
+                found = 'False'
+            return jsonify({'key':found})
     def put(self,key):
         # Check for valid input
         if keyCheck(key) == False:
@@ -373,6 +382,59 @@ class BasicGetPut(Resource):
                     return make_response(jsonify(response.json()), response.status_code)
                 except:
                     pass
+
+        # duplicate keys are not allowed across partitions
+        # find which partition has the key, if no one randomly assign key to a partition
+        for part in b.part_dic:
+            # make sure replica is up
+            up = 1
+            while(up != 0):
+                partID = random.randint(0, len(b.part_dic[part])-1)
+                node = b.part_dic[part][partID]
+                # dont need to ping itself
+                if(node == b.my_IP):
+                    up = 0
+                    if(key in b.kv_store):
+                        ########################################
+                        # Check for edge case where causal_payload is empty string
+                        # In this case, its the client's first write, so do it
+                        ########################################
+                        if sender_kv_store_vector_clock == '':
+                            my_time = time.time()
+                            b.kv_store[key] = (value, my_time)
+                            b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+                            return putNewKey(my_time)
+                        sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+                        ########################################
+                        # Check if their causal payload is strictly greater than or equal to mine, or if the key is new to me
+                        # If it is, do the write
+                        ########################################
+                        #return jsonify({'kv-store vector clock':kv_store_vector_clock,'sender_kv_store_vector_clock':sender_kv_store_vector_clock})
+                        if (checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock)) or key not in b.kv_store:
+                            my_time = time.time()
+                            b.kv_store[key] = (value, my_time)
+                            # this will help debugging
+                            # response = jsonify({'key':kv_store[key]})
+                            # return response
+                            b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+                            b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+                            return putNewKey(my_time)
+                        ########################################
+                        # If neither causal payload is less than or equal to the other, or if they are checkEqual
+                        # Then the payloads are concurrent, so don't do the write
+                        ########################################
+                        if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
+                            return cusError('payloads are concurrent',404)
+                else:
+                    IP = node.split(':')[0]
+                    up = os.system("ping -c 1 "+IP+" -W 1")
+            r = requests.get('http://'+node+'/partition_view/'+key)
+            j = r.json()
+            if(j['key'] == 'True'):
+                r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+                return make_response(jsonify(r.json()), r.status_code)
+
+
 
         # randomly find a replica thats online
         up = 1
