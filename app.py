@@ -179,8 +179,7 @@ def worldSync():
         # Sync world_proxy arrays across clusters
         ##########################################
         syncWorldProx()
-        if(b.my_part_id == 0):
-            partitionChange()
+        partitionChange()
 
 
 def syncWorldProx():
@@ -262,8 +261,9 @@ def isProxy():
 # for retrieving the rep and prox arrs
 ######################################
 def getReplicaArr():
-    if b.part_dic[b.my_part_id] is not None:
-        return b.part_dic[b.my_part_id]
+    if b.my_part_id >= 0:
+        if len(b.part_dic[b.my_part_id]) > 0:
+            return b.part_dic[b.my_part_id]
     else:
         return []
 
@@ -524,7 +524,7 @@ class UpdateWorldProxy(Resource):
     def put(self):
         data = request.form.to_dict()
         their_proxies = data['proxy_array'].split(',')
-        their_id = int(data['part_id'])
+        their_id = data['part_id']
 
         # Take out everything we know about thier proxies
         for node in b.world_proxy.keys():
@@ -640,7 +640,7 @@ class UpdateView(Resource):
 class UpdateDatas(Resource):
     def put(self):
         data = request.form.to_dict()
-        b.my_part_id = int(data['part_id'])
+        b.my_part_id = data['part_id']
         b.partition_view = data['partition_view'].split(',')
         b.kv_store = json.loads(data['kv_store'])
         b.node_ID_dic = json.loads(data['node_ID_dic'])
@@ -680,7 +680,7 @@ class GetKeyDetails(Resource):
         data = request.form.to_dict() # turn the inputted into [key:causal_payload]
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
         sender_timestamp = data['timestamp']
-        sender_node_id = int(data['nodeID'])
+        sender_node_id = data['nodeID']
         sender_key_value = data['val']
         # return jsonify({'value': sender_kv_store_vector_clock, 'timestamp': b.kv_store_vector_clock})
         if checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock):
@@ -817,7 +817,7 @@ class GetPartitionMembers(Resource):
     def get(self):
         data = request.form.to_dict()
         try:
-            part_id = int(data['partition_id'])
+            part_id = data['partition_id']
         except KeyError:
             return cusError('no partition_id key provided',404)
 
@@ -825,7 +825,7 @@ class GetPartitionMembers(Resource):
             return cusError('empty partition_id',404)
 
         try:
-            id_list = b.part_dic[int(part_id)]
+            id_list = b.part_dic[part_id]
         except KeyError:
             return cusError('partition dictionary does not have key '+part_id,404)
 
@@ -837,7 +837,7 @@ class GetPartitionMembers(Resource):
 class SyncPartDic(Resource):
     def put(self):
         data = request.form.to_dict()
-        their_part_clock = int(data['part_clock'])
+        their_part_clock = data['part_clock']
         their_part_dic = json.loads(data['part_dic'])
         if b.part_clock < their_part_clock:
             b.part_clock += 1
