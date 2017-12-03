@@ -103,9 +103,9 @@ def initVIEW():
 
     return
 
-###########################################################
+######################################################################
 # functon called in the heartbeat for syncing the kvstores
-###########################################################
+###############################################################
 def gossip(IP):
     for key in b.kv_store:
         response = requests.get('http://'+IP+'/getKeyDetails/' + key, data = {'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'val':b.kv_store[key][0], 'timestamp': b.kv_store[key][1], 'nodeID':b.node_ID_dic[b.my_IP]})
@@ -113,9 +113,9 @@ def gossip(IP):
         # return response
         b.kv_store[key] = (res['value'], res['timestamp'])
 
-#################################################################
+######################################################################################
 # functon called intermitantly to sync up the partition_view and the kv_stores
-###########################################################
+#################################################################################
 def heartbeat():
     # gossip with a random IP in the replicas array
     for node in getReplicaArr():
@@ -125,7 +125,7 @@ def heartbeat():
     #partitionChange()
     time.sleep(.050) #seconds
 
-####################################################################################
+###########################################################################################
 # function to check which node is up and down with ping, then promode and demote nodes
 ######################################################################################
 def worldSync():
@@ -193,9 +193,9 @@ def syncWorldProx():
 def isProxy():
     return (b.my_IP in getProxyArr())
 
-######################################
+###############################################
 # for retrieving the rep and prox arrs
-######################################
+########################################
 def getReplicaArr():
     if b.part_dic[b.my_part_id] is not None:
         return b.part_dic[b.my_part_id]
@@ -212,9 +212,9 @@ def getProxyArr():
     else:
         return []
 
-######################################################
+##########################################################
 # class for PUT key after random node is chosen
-##############################################
+####################################################
 class PartitionView(Resource):
     def get(self,key):
         if keyCheck(key) == False:
@@ -241,45 +241,36 @@ class PartitionView(Resource):
         except KeyError:
             return cusError('val key not provided',404)
 
-        ########################################
+
         # Check for edge case where causal_payload is empty string
         # In this case, its the client's first write, so do it
-        ########################################
         if sender_kv_store_vector_clock == '':
             my_time = time.time()
             b.kv_store[key] = (value, my_time)
             b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
             return putNewKey(my_time)
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
-        ########################################
+
         # Check if their causal payload is strictly greater than or equal to mine, or if the key is new to me
         # If it is, do the write
-        ########################################
-        #return jsonify({'kv-store vector clock':kv_store_vector_clock,'sender_kv_store_vector_clock':sender_kv_store_vector_clock})
         if (checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock)) or key not in b.kv_store:
             my_time = time.time()
             b.kv_store[key] = (value, my_time)
-            # this will help debugging
-            # response = jsonify({'key':kv_store[key]})
-            # return response
             b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
             b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
             return putNewKey(my_time)
 
-        ########################################
         # If neither causal payload is less than or equal to the other, or if they are checkEqual
         # Then the payloads are concurrent, so don't do the write
-        ########################################
         if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
             return cusError('payloads are concurrent',404)
 
 
-###############################################
+#########################################################
 # for proxies to easily get its array of reps
-######################################
+################################################
 def getNodesToForwardTo(id):
     return b.part_dic[ipPort]
-
 
 ###############################################
 # class for GET key and PUT key
@@ -291,12 +282,10 @@ class BasicGetPut(Resource):
         if keyCheck(key) == False:
             return invalidInput()
 
-        # Get causal_payload info
-        # converting unicode to list of ints
+        # Get causal_payload info. converting unicode to list of ints
         data = request.form.to_dict() # turn the inputted into [key:causal_payload]
-        #####################################################
+
         # This client knows nothing. No value for you!
-        #############################################
         try:
             sender_kv_store_vector_clock = data['causal_payload']
         except KeyError:
@@ -314,7 +303,6 @@ class BasicGetPut(Resource):
                     return make_response(jsonify(response.json()), response.status_code)
                 except:
                     pass
-
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
         #if senders causal_payload is less than or equal to mine, I am as, or more up to date
         if checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
@@ -347,12 +335,10 @@ class BasicGetPut(Resource):
             sender_kv_store_vector_clock = data['causal_payload']
         except KeyError:
             return cusError('causal_payload key not provided',404)
-
         try:
             value = data['val']
         except KeyError:
             return cusError('val key not provided',404)
-
         if isProxy():
             for node in getReplicaArr():
                 try:
