@@ -210,14 +210,15 @@ def partitionChange():
             # get ip_port from world_proxy
             world_proxy_arr = b.world_proxy.keys()
             # make new partition using K nodes at a time
+            b.part_dic[len(b.part_dic)] = []
             for i in range (0, numNewPartition):
-                current_proxy_arr = world_proxy_arr[k*i : k*(i+1) - 1]
+                current_proxy_arr = world_proxy_arr[b.K*i : b.K*(i+1) - 1]
                 for node in current_proxy_arr:
                     b.part_dic[len(b.part_dic)].append(node)
                     del b.world_proxy[node]
                 # after a new partition is formed, update new partition's world_proxy and part_id
                 requests.put("http://"+promote_node_IP+"/changeView", data={'partition_view':','.join(current_proxy_arr),
-                'replica_array':','.join(current_proxy_arr),
+                'part_dic':json.dumps(b.part_dic),
                 'node_ID_dic': json.dumps(b.node_ID_dic),
                 'part_clock': b.part_clock,
                 'world_proxy': json.dumps(b.world_proxy)})
@@ -230,7 +231,7 @@ def partitionChange():
                     response = requests.get('http://'+replicaArr[0]+'/getPartDic')
                     res = response.json()
                     partDic = json.loads(res['part_dic'])
-                    if partDic.keys() == previousDic.keys():
+                    if cmp(partDic, previousDic) == 0:
                         previousDic = partDic
                         i += 1
             # re-distribute keys
@@ -511,7 +512,7 @@ class ChangeView(Resource):
     def put(self):
         data = request.form.to_dict()
         b.partition_view = data['partition_view'].split(',')
-        b.part_dic[b.my_part_id] = data['replica_array'].split(',')
+        b.part_dic = json.loads(data['par_dic'])
         b.node_ID_dic = json.loads(data['node_ID_dic'])
         b.world_proxy = json.loads(data['world_proxy'])
         return jsonify({'partition_view': b.partition_view})
@@ -639,7 +640,7 @@ class UpdateView(Resource):
 class UpdateDatas(Resource):
     def put(self):
         data = request.form.to_dict()
-        b.my_part_id = data['part_id']
+        b.my_part_id = int(data['part_id'])
         b.partition_view = data['partition_view'].split(',')
         b.kv_store = json.loads(data['kv_store'])
         b.node_ID_dic = json.loads(data['node_ID_dic'])
@@ -753,7 +754,7 @@ def promoteNode(promote_node_IP):
         del b.world_proxy[promote_node_IP] # remove node in prx list
     # ChangeView on node
     res = requests.put("http://"+promote_node_IP+"/changeView", data={'partition_view':','.join(b.partition_view),
-    'replica_array':','.join(getReplicaArr()),
+    'part_dic':json.dumps(b.part_dic),
     'node_ID_dic': json.dumps(b.node_ID_dic),
     'part_clock': b.part_clock,
     'world_proxy': json.dumps(b.world_proxy)})
@@ -773,7 +774,7 @@ def demoteNode(demote_node_IP):
         del b.world_proxy[demote_node_IP]
     b.world_proxy[demote_node_IP] = b.my_part_id
     res = requests.put("http://"+demote_node_IP+"/changeView", data={'partition_view':','.join(b.partition_view),
-    'replica_array':','.join(getReplicaArr()),
+    'part_dic':json.dumps(b.part_dic),
     'part_clock': b.part_clock,
     'node_ID_dic': json.dumps(b.node_ID_dic),
     'world_proxy': json.dumps(b.world_proxy)})
@@ -816,7 +817,7 @@ class GetPartitionMembers(Resource):
     def get(self):
         data = request.form.to_dict()
         try:
-            part_id = data['partition_id']
+            part_id = int(data['partition_id'])
         except KeyError:
             return cusError('no partition_id key provided',404)
 
