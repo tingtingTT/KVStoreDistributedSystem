@@ -22,7 +22,7 @@ class BaseClass():
         self.partition_view = [] # change in initView
         self.kv_store_vector_clock=[0]*8 # is the pay load
         self.part_clock = 0
-        self.my_part_id = -1
+        self.my_part_id = "-1"
         self.world_proxy = {}
         # get variables form ENV variables
         self.my_IP = os.environ.get('IPPORT', None)
@@ -85,7 +85,7 @@ def initVIEW():
         numProx = N%b.K
 
         for i in range(0, b.K * numPart):
-            part_id = i/b.K
+            part_id = str(i/b.K)
             if b.VIEW_list[i] == b.my_IP:
                 b.my_part_id = part_id
             update(b.VIEW_list[i], part_id)
@@ -98,7 +98,7 @@ def initVIEW():
                 current_proxy = b.VIEW_list[b.K * numPart + 1 + i]
                 b.world_proxy[current_proxy] = 0
 
-    if getReplicaArr is not None and b.my_part_id >= 0:
+    if getReplicaArr is not None and b.my_part_id != "-1":
         b.partition_view = getReplicaArr() + getProxyArr()
 
     return
@@ -222,7 +222,7 @@ def partitionChange():
                 'part_clock': b.part_clock,
                 'world_proxy': json.dumps(b.world_proxy)})
             # partition 0 will wait until all partitions have the same partition dic
-            if(b.my_part_id == 0):
+            if(b.my_part_id == "0"):
                 i = 1
                 previousDic = b.part_dic
                 while(i <= len(b.part_dic)):
@@ -261,7 +261,7 @@ def isProxy():
 # for retrieving the rep and prox arrs
 ######################################
 def getReplicaArr():
-    if b.my_part_id >= 0:
+    if b.my_part_id != "-1":
         if len(b.part_dic[b.my_part_id]) > 0:
             return b.part_dic[b.my_part_id]
     else:
@@ -515,7 +515,6 @@ class ChangeView(Resource):
         b.part_dic = json.loads(data['par_dic'])
         b.node_ID_dic = json.loads(data['node_ID_dic'])
         b.world_proxy = json.loads(data['world_proxy'])
-        return jsonify({'partition_view': b.partition_view})
 
 ###################################
 # class for updating world_proxy with other clusters
@@ -753,14 +752,11 @@ def promoteNode(promote_node_IP):
     if promote_node_IP in getProxyArr():
         del b.world_proxy[promote_node_IP] # remove node in prx list
     # ChangeView on node
-    res = requests.put("http://"+promote_node_IP+"/changeView", data={'partition_view':','.join(b.partition_view),
+    requests.put("http://"+promote_node_IP+"/changeView", data={'partition_view':','.join(b.partition_view),
     'part_dic':json.dumps(b.part_dic),
     'node_ID_dic': json.dumps(b.node_ID_dic),
     'part_clock': b.part_clock,
     'world_proxy': json.dumps(b.world_proxy)})
-    resp = res.json()
-    # Update d.partition_view
-    b.partition_view = resp['partition_view']
     return
 ############################################
 # demote replica to a proxy
@@ -773,14 +769,12 @@ def demoteNode(demote_node_IP):
     if demote_node_IP in getReplicaArr():
         del b.world_proxy[demote_node_IP]
     b.world_proxy[demote_node_IP] = b.my_part_id
-    res = requests.put("http://"+demote_node_IP+"/changeView", data={'partition_view':','.join(b.partition_view),
+    requests.put("http://"+demote_node_IP+"/changeView", data={'partition_view':','.join(b.partition_view),
     'part_dic':json.dumps(b.part_dic),
     'part_clock': b.part_clock,
     'node_ID_dic': json.dumps(b.node_ID_dic),
     'world_proxy': json.dumps(b.world_proxy)})
-    resp = res.json()
-    # Update b.partition_view
-    b.partition_view = resp['partition_view']
+
 
     return
     # else, since I'm newer than others, when it comes my turn to ping others,
@@ -821,7 +815,7 @@ class GetPartitionMembers(Resource):
         except KeyError:
             return cusError('no partition_id key provided',404)
 
-        if(part_id == ''):
+        if(part_id == ""):
             return cusError('empty partition_id',404)
 
         try:
