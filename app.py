@@ -103,7 +103,6 @@ def initVIEW():
 
     return
 
-
 ###########################################################
 # functon called in the heartbeat for syncing the kvstores
 ###########################################################
@@ -130,10 +129,7 @@ def heartbeat():
 # function to check which node is up and down with ping, then promode and demote nodes
 ######################################################################################
 def worldSync():
-
-    #####################################################################
     # Sync everything in our partition. promote or demote as Necessary
-    #####################################################################
     while(True):
         tryNode = b.partition_view[random.randint(0, len(b.partition_view)-1)]
         if tryNode != b.my_IP:
@@ -162,19 +158,13 @@ def worldSync():
                 if len(getReplicaArr())<b.K:
                     promoteNode(node)
                 elif len(getReplicaArr())==b.K:
-                    # response = requests.get('http://'+node+"/getNodeState")
-                    # res = response.json()
-                    # node_kv_store = res['kv_store']
                     demoteNode(node)
             # case when a node is removed from replica array, we are not pinging it anyway cause it is not in our view
             elif node in getProxyArr() and len(getReplicaArr())<b.K:
                 promoteNode(node)
 
-        ##########################################
         # Sync world_proxy arrays across clusters
-        ##########################################
         syncWorldProx()
-
 
 def syncWorldProx():
     my_proxies = getProxyArr()
@@ -199,7 +189,6 @@ def syncWorldProx():
 #     #     # // assign leftover nodes to partition 0
 #
 # def redistributeKeys():
-#
 
 def isProxy():
     return (b.my_IP in getProxyArr())
@@ -327,9 +316,7 @@ class BasicGetPut(Resource):
                     pass
 
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
-        #####################################
         #if senders causal_payload is less than or equal to mine, I am as, or more up to date
-        #####################################
         if checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
             # Check if key is in kvStore before returning
             if key in b.kv_store:
@@ -386,34 +373,24 @@ class BasicGetPut(Resource):
                 if(node == b.my_IP):
                     up = 0
                     if(key in b.kv_store):
-                        ########################################
                         # Check for edge case where causal_payload is empty string
                         # In this case, its the client's first write, so do it
-                        ########################################
                         if sender_kv_store_vector_clock == '':
                             my_time = time.time()
                             b.kv_store[key] = (value, my_time)
                             b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                             return putNewKey(my_time)
                         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
-                        ########################################
-                        # Check if their causal payload is strictly greater than or equal to mine, or if the key is new to me
-                        # If it is, do the write
-                        ########################################
+                        # Check if their causal payload is strictly greater than or equal to mine, or if the key is new to me. If it is, do the write
                         #return jsonify({'kv-store vector clock':kv_store_vector_clock,'sender_kv_store_vector_clock':sender_kv_store_vector_clock})
                         if (checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock)) or key not in b.kv_store:
                             my_time = time.time()
                             b.kv_store[key] = (value, my_time)
-                            # this will help debugging
-                            # response = jsonify({'key':kv_store[key]})
-                            # return response
                             b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                             b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
                             return putNewKey(my_time)
-                        ########################################
                         # If neither causal payload is less than or equal to the other, or if they are checkEqual
                         # Then the payloads are concurrent, so don't do the write
-                        ########################################
                         if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
                             return cusError('payloads are concurrent',404)
                 else:
@@ -424,8 +401,6 @@ class BasicGetPut(Resource):
             if(j['key'] == 'True'):
                 r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
                 return make_response(jsonify(r.json()), r.status_code)
-
-
 
         # randomly find a replica thats online
         up = 1
@@ -445,34 +420,26 @@ class BasicGetPut(Resource):
             r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
             return make_response(jsonify(r.json()), r.status_code)
 
-        ########################################
         # Check for edge case where causal_payload is empty string
         # In this case, its the client's first write, so do it
-        ########################################
         if sender_kv_store_vector_clock == '':
             my_time = time.time()
             b.kv_store[key] = (value, my_time)
             b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
             return putNewKey(my_time)
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
-        ########################################
+
         # Check if their causal payload is strictly greater than or equal to mine, or if the key is new to me
         # If it is, do the write
-        ########################################
-        #return jsonify({'kv-store vector clock':kv_store_vector_clock,'sender_kv_store_vector_clock':sender_kv_store_vector_clock})
         if (checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock)) or key not in b.kv_store:
             my_time = time.time()
             b.kv_store[key] = (value, my_time)
-            # this will help debugging
-            # response = jsonify({'key':kv_store[key]})
-            # return response
             b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
             b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
             return putNewKey(my_time)
-        ########################################
+
         # If neither causal payload is less than or equal to the other, or if they are checkEqual
         # Then the payloads are concurrent, so don't do the write
-        ########################################
         if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
             return cusError('payloads are concurrent',404)
 
@@ -487,7 +454,6 @@ class GetNodeDetails(Resource):
         else:
             return getNodeDetailsReplica()
 
-
 ############################################
 # class for GET all replicas
 ######################################
@@ -496,9 +462,9 @@ class GetAllReplicas(Resource):
     def get(self):
         return getAllReplicasSuccess()
 
-###################################
+############################################
 # class for update view for node
-#######################################
+######################################
 class ChangeView(Resource):
     def put(self):
         data = request.form.to_dict()
@@ -515,12 +481,10 @@ class UpdateWorldProxy(Resource):
         data = request.form.to_dict()
         their_proxies = data['proxy_array'].split(',')
         their_id = int(data['part_id'])
-
         # Take out everything we know about thier proxies
         for node in b.world_proxy.keys():
             if b.world_proxy[node] == their_id:
                 del b.world_proxy[node]
-
         # Reload world_proxy with new data
         for node in their_proxies:
             b.world_proxy[node] = their_id
@@ -543,11 +507,8 @@ class AddNode(Resource):
 #####################################
 class RemoveNode(Resource):
     def put(self):
-    #    if(isProxy() is True):
-        #    return proxy_forward(request.url_rule,request.method,request.form.to_dict(),'')
         data = request.form.to_dict()
         remove_node_ip_port = data['ip_port']
-        # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
         if remove_node_ip_port in b.partition_view:
             b.partition_view.remove(remove_node_ip_port)
             del b.world_proxy[remove_node_ip_port]
@@ -562,7 +523,7 @@ class RemoveNode(Resource):
 # class for add a node into view
 ######################################
 class UpdateView(Resource):
-        # get type is add or remove
+    # get type is add or remove
     def put(self):
         type = request.args.get('type','')
         if type == None:
@@ -640,7 +601,7 @@ class UpdateDatas(Resource):
         b.world_proxy = json.loads(data['world_proxy'])
         b.kv_store_vector_clock = map(int,data['kv_store_vector_clock'].split('.'))
 
-##############################################
+######################################################
 # class for reset the node if node is removed
 ################################################
 class ResetData(Resource):
