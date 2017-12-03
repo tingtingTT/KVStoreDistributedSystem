@@ -186,12 +186,6 @@ def syncWorldProx():
                 for node in replicas:
                     requests.put('http://' + node + '/updateWorldProxy', data = {'proxy_array': ','.join(getProxyArr()), 'part_id': b.my_part_id})
 
-
-
-
-
-
-
 # def partitionChange():
 #
 #     # if len(getProxyArr()>=K):
@@ -206,9 +200,6 @@ def syncWorldProx():
 #
 # def redistributeKeys():
 #
-
-
-
 
 def isProxy():
     return (b.my_IP in getProxyArr())
@@ -294,14 +285,14 @@ class PartitionView(Resource):
             return cusError('payloads are concurrent',404)
 
 
-######################################
+###############################################
 # for proxies to easily get its array of reps
 ######################################
 def getNodesToForwardTo(id):
     return b.part_dic[ipPort]
 
 
-######################################
+###############################################
 # class for GET key and PUT key
 ######################################
 class BasicGetPut(Resource):
@@ -314,9 +305,9 @@ class BasicGetPut(Resource):
         # Get causal_payload info
         # converting unicode to list of ints
         data = request.form.to_dict() # turn the inputted into [key:causal_payload]
-        #####################################
+        #####################################################
         # This client knows nothing. No value for you!
-        #####################################
+        #############################################
         try:
             sender_kv_store_vector_clock = data['causal_payload']
         except KeyError:
