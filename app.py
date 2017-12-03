@@ -7,6 +7,8 @@ import re, os, socket, time
 import requests
 import random
 import threading
+import logging
+from logging.handlers import RotatingFileHandler
 
 ############################################
 # initialize variables
@@ -183,39 +185,42 @@ def worldSync():
 
 def syncWorldProx():
    # TODO: might break. Who knows
+
     for node in b.world_proxy.keys():
         if b.world_proxy[node] == -1:
             b.node_ID_dic[node] = len(node_ID_dic)
             b.world_proxy[node] = b.my_part_id
 
+
     for partition_id in b.part_dic.keys():
         if partition_id != b.my_part_id:
-            # make API call to first replica in that id
+        # make API call to first replica in that id
             replicas = b.part_dic[partition_id]
             for node in replicas:
                 requests.put('http://' + node + '/updateWorldProxy', data = {'proxy_array': ','.join(getProxyArr()), 'part_id': b.my_part_id})
 
+    app.logger.info('my world proxy arr' + str(b.world_proxy))
+
 
 def partitionChange():
-    i = 0
-    previousDic = b.part_dic
-    while(i < len(b.part_dic)):
-        replicaArr = b.part_dic[str(i)]
-        response = requests.get('http://'+replicaArr[0]+'/getPartDic')
-        res = response.json()
-        partDic = json.loads(res['part_dic'])
-        if cmp(partDic, previousDic) != 0:
-            return
-        i += 1
+    # i = 0
+    # previousDic = b.part_dic
+    # while(i < len(b.part_dic)):
+    #     replicaArr = b.part_dic[str(i)]
+    #     response = requests.get('http://'+replicaArr[0]+'/getPartDic')
+    #     res = response.json()
+    #     partDic = json.loads(res['part_dic'])
+    #     if cmp(partDic, previousDic) != 0:
+    #         return
+    #     else:
+    #         i += 1
 
 
-    if len(b.world_proxy) >= b.K:
+    if len(b.world_proxy.keys()) >= b.K:
+        app.logger.info('i want to make a new partition!')
         numNewPartition = len(b.world_proxy) / b.K
         numLeftProxy = len(b.world_proxy) % b.K
-        for part_id in b.part_dic.keys():
-            if part_id != b.my_part_id:
-                replicaArr = b.part_dic[part_id]
-                requests.put('http://'+replicaArr[0]+'/syncPartDic', data = {'part_clock': b.part_clock, 'part_dic': json.dumps(b.part_dic)})
+
         if numNewPartition > 0:
             b.part_clock += 1
             # get ip_port from world_proxy
@@ -228,16 +233,30 @@ def partitionChange():
                 for node in current_proxy_arr:
                     b.part_dic[new_id].append(node)
                     del b.world_proxy[node]
-                # after a new partition is formed, update new partition's world_proxy and part_id
-                if current_proxy_arr[0] != b.my_IP:
-                    requests.put("http://"+current_proxy_arr[0]+"/changeView", data={'partition_view':','.join(current_proxy_arr),
-                    'part_dic':json.dumps(b.part_dic),
-                    'node_ID_dic': json.dumps(b.node_ID_dic),
-                    'part_clock': b.part_clock,
-                    'world_proxy': json.dumps(b.world_proxy)})
+
+            # ask the new partition if they already have the up to date dictionary
+            response = requests.get('http://'+b.part_dic[str(len(b.part_dic)-1)][0]+'/getPartDic')
+            res = response.json()
+            partDic = json.loads(res['part_dic'])
+            if cmp(partDic, b.part_dic) == 0:
+                reDistributeKeys()
+            # after a new partition is formed, update new partition's world_proxy and part_id
+        elif cmp(partDic, b.part_dic) != 0 and b.part_dic[str(len(b.part_dic)-1)][0] != b.my_IP:
+                requests.put("http://"+current_proxy_arr[0]+"/changeView", data={
+                'partition_view':','.join(current_proxy_arr),
+                'part_dic':json.dumps(b.part_dic),
+                'node_ID_dic': json.dumps(b.node_ID_dic),
+                'part_clock': b.part_clock,
+                'world_proxy': json.dumps(b.world_proxy)})
             # partition 0 will wait until all partitions have the same partition dic
             if(b.my_part_id == "0" and b.my_IP == b.part_dic["0"][0]):
+                for part_id in b.part_dic.keys():
+                    if part_id != b.my_part_id:
+                        replicaArr = b.part_dic[part_id]
+                        app.logger.info('im about to call syncPartDic!')
+                        requests.put('http://'+replicaArr[0]+'/syncPartDic', data = {'part_clock': b.part_clock, 'part_dic': json.dumps(b.part_dic)})
                 i = 1
+                tries = 1
                 previousDic = b.part_dic
                 while(i < len(b.part_dic)):
                     replicaArr = b.part_dic[str(i)]
@@ -247,6 +266,10 @@ def partitionChange():
                     if cmp(partDic, previousDic) == 0:
                         previousDic = partDic
                         i += 1
+                    tries +=1
+                    if tries > 2*len(b.part_dic):
+                        break
+
             # re-distribute keys
             reDistributeKeys()
 
@@ -539,8 +562,14 @@ class UpdateWorldProxy(Resource):
         data = request.form.to_dict()
         their_proxies = data['proxy_array'].split(',')
         their_id = data['part_id']
+        their_clock = data['part_clock']
+
+        app.logger.info('their proxies: ' + str(their_proxies))
+        app.logger.info('their id: ' + their_id)
 
         if b.world_proxy.keys() == their_proxies:
+            return
+        elif b.my_IP in their_proxies:
             return
 
         # Take out everything we know about thier proxies
@@ -851,9 +880,15 @@ class GetPartitionMembers(Resource):
 #############################################################################
 class SyncPartDic(Resource):
     def put(self):
+        app.logger.info('im inside syncPartDic')
         data = request.form.to_dict()
-        their_part_clock = data['part_clock']
+        their_part_clock = int(data['part_clock'])
         their_part_dic = json.loads(data['part_dic'])
+
+        app.logger.info('their part clock = ' + str(their_part_clock))
+        app.logger.info('my part clock = ' + str(b.part_clock))
+
+
         if b.part_clock < their_part_clock:
             b.part_clock += 1
             b.part_dic = their_part_dic
@@ -1064,5 +1099,8 @@ api.add_resource(WriteKey, '/writeKey')
 api.add_resource(ResetKv, '/resetKv')
 
 if __name__ == '__main__':
+    handler = RotatingFileHandler('foo.log', maxBytes=10000, backupCount=1)
+    handler.setLevel(logging.INFO)
+    app.logger.addHandler(handler)
     initVIEW()
     app.run(host=b.IP, port=8080, debug=True)
