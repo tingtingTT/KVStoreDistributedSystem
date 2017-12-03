@@ -242,12 +242,12 @@ def partitionChange():
                 reDistributeKeys()
             # after a new partition is formed, update new partition's world_proxy and part_id
         elif cmp(partDic, b.part_dic) != 0 and b.part_dic[str(len(b.part_dic)-1)][0] != b.my_IP:
-                requests.put("http://"+current_proxy_arr[0]+"/changeView", data={
-                'partition_view':','.join(current_proxy_arr),
-                'part_dic':json.dumps(b.part_dic),
-                'node_ID_dic': json.dumps(b.node_ID_dic),
-                'part_clock': b.part_clock,
-                'world_proxy': json.dumps(b.world_proxy)})
+            requests.put("http://"+current_proxy_arr[0]+"/changeView", data={
+            'partition_view':','.join(current_proxy_arr),
+            'part_dic':json.dumps(b.part_dic),
+            'node_ID_dic': json.dumps(b.node_ID_dic),
+            'part_clock': b.part_clock,
+            'world_proxy': json.dumps(b.world_proxy)})
             # partition 0 will wait until all partitions have the same partition dic
             if(b.my_part_id == "0" and b.my_IP == b.part_dic["0"][0]):
                 for part_id in b.part_dic.keys():
