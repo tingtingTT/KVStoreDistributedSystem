@@ -197,7 +197,10 @@ def syncWorldProx():
         # make API call to first replica in that id
             replicas = b.part_dic[partition_id]
             for node in replicas:
-                requests.put('http://' + node + '/updateWorldProxy', data = {'proxy_array': ','.join(getProxyArr()), 'part_id': b.my_part_id})
+                requests.put('http://' + node + '/updateWorldProxy', data = {
+                'proxy_array': ','.join(getProxyArr()),
+                'part_id': b.my_part_id, 'world_proxy_arr': json.dumps(b.world_proxy),
+                'part_clock': b.part_clock})
 
     app.logger.info('my world proxy arr' + str(b.world_proxy))
 
@@ -241,13 +244,13 @@ def partitionChange():
             if cmp(partDic, b.part_dic) == 0:
                 reDistributeKeys()
             # after a new partition is formed, update new partition's world_proxy and part_id
-        elif cmp(partDic, b.part_dic) != 0 and b.part_dic[str(len(b.part_dic)-1)][0] != b.my_IP:
-            requests.put("http://"+current_proxy_arr[0]+"/changeView", data={
-            'partition_view':','.join(current_proxy_arr),
-            'part_dic':json.dumps(b.part_dic),
-            'node_ID_dic': json.dumps(b.node_ID_dic),
-            'part_clock': b.part_clock,
-            'world_proxy': json.dumps(b.world_proxy)})
+            elif cmp(partDic, b.part_dic) != 0 and b.part_dic[str(len(b.part_dic)-1)][0] != b.my_IP:
+                requests.put("http://"+current_proxy_arr[0]+"/changeView", data={
+                'partition_view':','.join(current_proxy_arr),
+                'part_dic':json.dumps(b.part_dic),
+                'node_ID_dic': json.dumps(b.node_ID_dic),
+                'part_clock': b.part_clock,
+                'world_proxy': json.dumps(b.world_proxy)})
             # partition 0 will wait until all partitions have the same partition dic
             if(b.my_part_id == "0" and b.my_IP == b.part_dic["0"][0]):
                 for part_id in b.part_dic.keys():
@@ -476,7 +479,7 @@ class BasicGetPut(Resource):
         # randomly find a replica thats online
         up = 1
         while(up != 0):
-            ranpart = random.randint(0,len(b.part_dic)-1)
+            ranpart = str(random.randint(0,len(b.part_dic)-1))
             partID = random.randint(0, len(b.part_dic[ranpart])-1)
             # random part_id, replica arr, random node
             node = b.part_dic[ranpart][partID]
@@ -561,16 +564,21 @@ class UpdateWorldProxy(Resource):
     def put(self):
         data = request.form.to_dict()
         their_proxies = data['proxy_array'].split(',')
+        their_world_prox = json.loads(data['world_proxy_arr'])
         their_id = data['part_id']
-        their_clock = data['part_clock']
+        their_part_clock = int(data['part_clock'])
 
         app.logger.info('their proxies: ' + str(their_proxies))
         app.logger.info('their id: ' + their_id)
 
-        if b.world_proxy.keys() == their_proxies:
+        if cmp(b.world_proxy, their_world_prox) == 0:
             return
         elif b.my_IP in their_proxies:
             return
+        elif their_part_clock > b.part_clock:
+            b.world_proxy = their_world_prox
+            return
+
 
         # Take out everything we know about thier proxies
         for node in b.world_proxy.keys():
