@@ -185,7 +185,7 @@ def syncWorldProx():
    # TODO: might break. Who knows
 
     for node in b.world_proxy.keys():
-        if b.world_proxy[node] == -1:
+        if b.world_proxy[node] == "-1":
             b.node_ID_dic[node] = len(node_ID_dic)
             b.world_proxy[node] = b.my_part_id
 
@@ -194,7 +194,9 @@ def syncWorldProx():
         if partition_id != b.my_part_id:
         # make API call to first replica in that id
             replicas = b.part_dic[partition_id]
+
             for node in replicas:
+                app.logger.info('Im sending ' + str(getProxyArr()) +' to ' + str(node))
                 requests.put('http://' + node + '/updateWorldProxy', data = {
                 'proxy_array': ','.join(getProxyArr()),
                 'part_id': b.my_part_id, 'world_proxy_arr': json.dumps(b.world_proxy),
@@ -218,7 +220,9 @@ def partitionChange():
 
 
     if len(b.world_proxy.keys()) >= b.K:
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info('i want to make a new partition!')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         numNewPartition = len(b.world_proxy) / b.K
         numLeftProxy = len(b.world_proxy) % b.K
 
@@ -236,13 +240,15 @@ def partitionChange():
                     del b.world_proxy[node]
 
             # ask the new partition if they already have the up to date dictionary
-            response = requests.get('http://'+b.part_dic[str(len(b.part_dic)-1)][0]+'/getPartDic')
+            response = requests.get('http://'+b.part_dic[new_id][0]+'/getPartDic')
             res = response.json()
             partDic = json.loads(res['part_dic'])
             if cmp(partDic, b.part_dic) == 0:
+                app.logger.info('my dic agrees with the new parts dic agree so redist keys')
                 reDistributeKeys()
             # after a new partition is formed, update new partition's world_proxy and part_id
             elif cmp(partDic, b.part_dic) != 0 and b.part_dic[str(len(b.part_dic)-1)][0] != b.my_IP:
+                app.logger.info('our ditionaries dont agree')
                 new_id = str(len(b.part_dic)-1)
                 for node in current_proxy_arr:
                     requests.put("http://"+node+"/changeView", data={
@@ -827,7 +833,7 @@ def demoteNode(demote_node_IP):
         del b.world_proxy[demote_node_IP]
     b.world_proxy[demote_node_IP] = b.my_part_id
     requests.put("http://"+demote_node_IP+"/changeView", data={
-    'par_id': b.my_part_id,
+    'part_id': b.my_part_id,
     'part_dic':json.dumps(b.part_dic),
     'part_clock': b.part_clock,
     'node_ID_dic': json.dumps(b.node_ID_dic),
