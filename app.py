@@ -238,6 +238,15 @@ def partitionChange():
                 for node in current_proxy_arr:
                     b.part_dic[new_id].append(node)
                     del b.world_proxy[node]
+            for node in getReplicaArr():
+                if node != b.my_IP:
+                    # TODO: let other nodes in my replica array
+                    requests.put("http://"+node+"/changeView", data={
+                    'part_id': b.my_part_id,
+                    'part_dic':json.dumps(b.part_dic),
+                    'node_ID_dic': json.dumps(b.node_ID_dic),
+                    'part_clock': b.part_clock,
+                    'world_proxy': json.dumps(b.world_proxy)})
 
             # ask the new partition if they already have the up to date dictionary
             response = requests.get('http://'+b.part_dic[new_id][0]+'/getPartDic')
@@ -308,8 +317,8 @@ def isProxy():
 ######################################
 def getReplicaArr():
     if b.my_part_id != "-1":
-        if len(b.part_dic[str(b.my_part_id)]) > 0:
-            return b.part_dic[str(b.my_part_id)]
+        if len(b.part_dic[b.my_part_id]) > 0:
+            return b.part_dic[b.my_part_id]
     else:
         return []
 
