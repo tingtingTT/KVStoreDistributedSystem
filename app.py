@@ -188,13 +188,13 @@ def syncWorldProx():
             replicas = b.part_dic[partition_id]
 
             for node in replicas:
-                app.logger.info('Im sending ' + str(getProxyArr()) +' to ' + str(node))
+                #app.logger.info('Im sending ' + str(getProxyArr()) +' to ' + str(node))
                 requests.put('http://' + node + '/updateWorldProxy', data = {
                 'proxy_array': ','.join(getProxyArr()),
                 'part_id': b.my_part_id, 'world_proxy_arr': json.dumps(b.world_proxy),
                 'part_clock': b.part_clock})
 
-    app.logger.info('my world proxy arr' + str(b.world_proxy))
+    #app.logger.info('my world proxy arr' + str(b.world_proxy))
 
 
 def partitionChange():
@@ -212,9 +212,9 @@ def partitionChange():
 
 
     if len(b.world_proxy.keys()) >= b.K:
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info('i want to make a new partition!')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        #app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        #app.logger.info('i want to make a new partition!')
+        #app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         numNewPartition = len(b.world_proxy) / b.K
         numLeftProxy = len(b.world_proxy) % b.K
 
@@ -236,11 +236,11 @@ def partitionChange():
             res = response.json()
             partDic = json.loads(res['part_dic'])
             if cmp(partDic, b.part_dic) == 0:
-                app.logger.info('my dic agrees with the new parts dic agree so redist keys')
+                #app.logger.info('my dic agrees with the new parts dic agree so redist keys')
                 reDistributeKeys()
             # after a new partition is formed, update new partition's world_proxy and part_id
             elif cmp(partDic, b.part_dic) != 0 and b.part_dic[str(len(b.part_dic)-1)][0] != b.my_IP:
-                app.logger.info('our ditionaries dont agree')
+                #app.logger.info('our ditionaries dont agree')
                 new_id = str(len(b.part_dic)-1)
                 for node in current_proxy_arr:
                     requests.put("http://"+node+"/changeView", data={
@@ -254,7 +254,7 @@ def partitionChange():
                 for part_id in b.part_dic.keys():
                     if part_id != b.my_part_id:
                         replicaArr = b.part_dic[part_id]
-                        app.logger.info('im about to call syncPartDic!')
+                        #app.logger.info('im about to call syncPartDic!')
                         requests.put('http://'+replicaArr[0]+'/syncPartDic', data = {'part_clock': b.part_clock, 'part_dic': json.dumps(b.part_dic)})
                 i = 1
                 tries = 1
@@ -484,16 +484,21 @@ class BasicGetPut(Resource):
                         return cusError('Invalid causal_payload',404)
 
             else: # if 1st node in partition is NOT me
+                app.logger.info(node)
+                app.logger.info(key)
                 r = requests.get('http://'+node+'/partition_view/'+key)
-                a = r.json()
-                if (a['key'] == 'True'):
-                    r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+                if(r.status_code == 404):
                     return make_response(jsonify(r.json()), r.status_code)
+                else:
+                    a = r.json()
+                    if (a['key'] == 'True'):
+                        r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+                        return make_response(jsonify(r.json()), r.status_code)
 
         # key was never found in the system! Means new key! Add to random partiton!
         random_part_id = random.randint(0,len(b.part_dic)-1)
-        nodeID = random.randint(0, len(b.part_dic[random_part_id])-1)
-        node = b.part_dic[random_part_id][nodeID]
+        nodeID = random.randint(0, len(b.part_dic[str(random_part_id)])-1)
+        node = b.part_dic[str(random_part_id)][nodeID]
         if node == b.my_IP:
             # if happened to be me!
             if sender_kv_store_vector_clock == '':
@@ -563,8 +568,8 @@ class UpdateWorldProxy(Resource):
         their_id = data['part_id']
         their_part_clock = int(data['part_clock'])
 
-        app.logger.info('their proxies: ' + str(their_proxies))
-        app.logger.info('their id: ' + their_id)
+        #app.logger.info('their proxies: ' + str(their_proxies))
+        #app.logger.info('their id: ' + their_id)
 
         if cmp(b.world_proxy, their_world_prox) == 0:
             return
@@ -877,13 +882,13 @@ class GetPartitionMembers(Resource):
 #############################################################################
 class SyncPartDic(Resource):
     def put(self):
-        app.logger.info('im inside syncPartDic')
+        #app.logger.info('im inside syncPartDic')
         data = request.form.to_dict()
         their_part_clock = int(data['part_clock'])
         their_part_dic = json.loads(data['part_dic'])
 
-        app.logger.info('their part clock = ' + str(their_part_clock))
-        app.logger.info('my part clock = ' + str(b.part_clock))
+        #app.logger.info('their part clock = ' + str(their_part_clock))
+        #app.logger.info('my part clock = ' + str(b.part_clock))
 
 
         if b.part_clock < their_part_clock:
@@ -1091,7 +1096,7 @@ api.add_resource(Availability, '/availability')
 api.add_resource(GetKeyDetails, '/getKeyDetails/<string:key>')
 api.add_resource(ChangeView, '/changeView')
 api.add_resource(UpdateWorldProxy, '/updateWorldProxy')
-api.add_resource(PartitionView,'/partitionView/<string:key>')
+api.add_resource(PartitionView,'/partition_view/<string:key>')
 api.add_resource(SyncPartDic,'/syncPartDic') # part_id and part_clock
 api.add_resource(WriteKey, '/writeKey')
 api.add_resource(ResetKv, '/resetKv')
