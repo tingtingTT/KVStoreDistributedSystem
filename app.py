@@ -962,13 +962,13 @@ def addSameNode():
     return response
 # add node successful
 def addNodeSuccess(node_ID):
-    response = jsonify({'msg': 'success', 'number_of_partitions': len(b.part_dic)})
+    response = jsonify({'result': 'success','partition_id': b.my_part_id, 'number_of_partitions': len(b.part_dic)})
     response.status_code = 200
     return response
 
 # remove node success
 def removeNodeSuccess():
-    response = jsonify({'result': 'success', 'number_of_partitions': len(b.part_dic)})
+    response = jsonify({'result': 'success', 'partition_id': b.my_part_id ,'number_of_partitions': len(b.part_dic)})
     response.status_code = 200
     return response
 
