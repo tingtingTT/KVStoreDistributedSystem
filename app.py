@@ -199,6 +199,7 @@ def syncAll():
                     previousWorldProx = their_world_prox
                 else:
                     app.logger.info('@#Not synced yet!')
+                    time.sleep(1)
                     syncAll()
     app.logger.info('@#All synced!!!')
 
@@ -225,7 +226,9 @@ def syncWorldProx():
                 app.logger.info('Im sending ' + str(getProxyArr()) +' to ' + str(node))
                 requests.put('http://' + node + '/updateWorldProxy', data = {
                 'proxy_array': ','.join(getProxyArr()),
-                'part_id': b.my_part_id, 'world_proxy_arr': json.dumps(b.world_proxy),
+                'part_id': b.my_part_id,
+                'world_proxy_arr': json.dumps(b.world_proxy),
+                'my_ip': b.my_IP,
                 'part_clock': b.part_clock})
 
 
@@ -288,13 +291,14 @@ def partitionChange():
                         b.part_dic[new_id] = []
                     for node in current_proxy_arr:
                         b.part_dic[new_id].append(node)
-                        del b.world_proxy[node]
+                        # del b.world_proxy[node]
+            b.world_proxy = {}
 
-            app.logger.info('?????????????????????????')
+            app.logger.info('????????^^^^&??????????')
             app.logger.info('my world Prox' + str(b.world_proxy))
             app.logger.info('my part Dic' + str(b.part_dic))
-            app.logger.info('?????????????????????????')
-            time.sleep(200)
+            app.logger.info('????????^^^^&??????????')
+
                 # else:
                 #     for node in current_proxy_arr:
                 #         del b.world_proxy[node]
@@ -314,7 +318,7 @@ def partitionChange():
                 'part_dic':json.dumps(b.part_dic),
                 'node_ID_dic': json.dumps(b.node_ID_dic),
                 'part_clock': b.part_clock,
-                'world_proxy': json.dumps(b.world_proxy)})
+                'world_proxy': '{}'})
                 # # partition 0 will wait until all partitions have the same partition dic
                 # if(b.my_part_id == "0" and b.my_IP == b.part_dic["0"][0]):
                 #     for part_id in b.part_dic.keys():
@@ -657,7 +661,7 @@ class UpdateWorldProxy(Resource):
         their_world_prox = json.loads(data['world_proxy_arr'])
         their_id = data['part_id']
         their_part_clock = int(data['part_clock'])
-
+        their_IP = data['my_ip']
         app.logger.info('their proxies: ' + str(their_proxies))
 
         if cmp(b.world_proxy, their_world_prox) == 0:
@@ -665,9 +669,19 @@ class UpdateWorldProxy(Resource):
         # elif b.my_IP in their_proxies:
         #     return
         elif their_part_clock > b.part_clock:
+            response = requests.get('http://'+their_IP+'/getPartDic')
+            res = response.json()
+            b.part_dic = json.loads(res['part_dic'])
             b.world_proxy = their_world_prox
+            b.part_clock+=1
             return
 
+        for partition in b.part_dic.keys():
+            replicas = b.part_dic[partition]
+            for rep in replicas:
+                for i in range(0, len(their_proxies)):
+                    if rep == their_proxies[i]:
+                        return
 
         # Take out everything we know about thier proxies
         for node in b.world_proxy.keys():
