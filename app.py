@@ -177,8 +177,27 @@ def worldSync():
         ##########################################
         # Sync world_proxy arrays across clusters
         ##########################################
-        syncWorldProx()
+        syncAll()
         partitionChange()
+
+def syncAll():
+    syncWorldProx()
+    previousWorldProx = b.world_proxy
+    for partition in b.part_dic.keys():
+        replicas = b.part_dic[partition]
+        for replica in replicas:
+            if replica != b.my_IP:
+                response = requests.get('http://'+replica+'/getWorldProx')
+                res = response.json()
+                their_world_prox = json.loads(res['world_proxy'])
+                if cmp(previousWorldProx, their_world_prox) == 0:
+                    previousWorldProx = their_world_prox
+                else:
+                    app.logger.info('@#Not synced yet!')
+                    syncAll()
+    app.logger.info('@#All synced!!!')
+
+
 
 
 def syncWorldProx():
@@ -191,11 +210,13 @@ def syncWorldProx():
 
 
     for partition_id in b.part_dic.keys():
-        if partition_id != b.my_part_id:
+        # if partition_id != b.my_part_id:
         # make API call to first replica in that id
-            replicas = b.part_dic[partition_id]
 
-            for node in replicas:
+        replicas = b.part_dic[partition_id]
+
+        for node in replicas:
+            if node != b.my_IP:
                 app.logger.info('Im sending ' + str(getProxyArr()) +' to ' + str(node))
                 requests.put('http://' + node + '/updateWorldProxy', data = {
                 'proxy_array': ','.join(getProxyArr()),
@@ -233,9 +254,9 @@ def partitionChange():
 
 
     if len(b.world_proxy.keys()) >= b.K:
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info('!!!!!$$$!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info('i want to make a new partition!')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info('!!!!!$$$!!!!!!!!!!!!!!!!!!!!!!!')
         numNewPartition = len(b.world_proxy) / b.K
         numLeftProxy = len(b.world_proxy) % b.K
 
@@ -623,8 +644,8 @@ class UpdateWorldProxy(Resource):
 
         if cmp(b.world_proxy, their_world_prox) == 0:
             return
-        elif b.my_IP in their_proxies:
-            return
+        # elif b.my_IP in their_proxies:
+        #     return
         elif their_part_clock > b.part_clock:
             b.world_proxy = their_world_prox
             return
