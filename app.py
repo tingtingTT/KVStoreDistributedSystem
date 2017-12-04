@@ -231,6 +231,8 @@ class PartitionView(Resource):
             value = data['val']
         except KeyError:
             return cusError('val key not provided',404)
+        if((key in b.kv_store) and (sender_kv_store_vector_clock == '')):
+            return cusError('duplicated key, causal_payload cannot be empty',404)
         if sender_kv_store_vector_clock == '':
             my_time = time.time()
             b.kv_store[key] = (value, my_time)
@@ -342,11 +344,6 @@ class BasicGetPut(Resource):
             node = b.part_dic[partnum][0] # 1st node in that partition
             if node == b.my_IP:
                 if(key in b.kv_store):
-                    if sender_kv_store_vector_clock == '':
-                        my_time = time.time()
-                        b.kv_store[key] = (value, my_time)
-                        b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-                        return putNewKey(my_time)
                     if (checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock)) or key not in b.kv_store:
                         my_time = time.time()
                         b.kv_store[key] = (value, my_time)
@@ -355,9 +352,8 @@ class BasicGetPut(Resource):
                         return putNewKey(my_time)
                     if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
                         return cusError('payloads are concurrent',404)
-                    break # get out of loop because (over)write is done!
-                else:
-                    pass # not in my kv_store! pass and go on to check over partition node
+                    if(sender_kv_store_vector_clock == ''):
+                        return cusError('duplicated key, causal_payload cannot be empty',404)
 
             else: # if 1st node in partition is NOT me
                 r = requests.get('http://'+node+'/partition_view/'+key)
