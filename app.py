@@ -281,8 +281,19 @@ class BasicGetPut(Resource):
                     return make_response(jsonify(response.json()), response.status_code)
                 except:
                     pass
+
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
         # if senders causal_payload is less than or equal to mine, I am as, or more up to date
+        if (key not in b.kv_store):
+            for partnum in b.part_dic:
+                node = b.part_dic[partnum][0] # 1st node in that partition
+                if node != b.my_IP:
+                    r = requests.get('http://'+node+'/partition_view/'+key)
+                    a = r.json()
+                    if (a['key'] == 'True'):
+                        r = requests.get('http://'+node+'/kv-store/' + key, data=request.form)
+                        return make_response(jsonify(r.json()), r.status_code)
+
         if checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
             # Check if key is in kvStore before returning
             if key in b.kv_store:
@@ -291,17 +302,19 @@ class BasicGetPut(Resource):
                 return getSuccess(value, my_time)
             # My payload is more up to date, but I dont have the key, so error
             else:
-                return getValueForKeyError()
+                return cusError('Key does not exist',404)
         else:
-            for node in getReplicaArr():
-                response = requests.get('http://'+node+'/getNodeState')
-                res = response.json()
-                # return stale data because we are promising availability
-                if key in res['kv_store']:
-                    value = res['kv_store'][key][0]
-                    my_time = res['kv_store'][key][1]
-                    return getSuccess(value, my_time)
-            return getValueForKeyError()
+            return cusError('Invalid causal_payload',404)
+        # else:
+        #     for node in getReplicaArr():
+        #         response = requests.get('http://'+node+'/getNodeState')
+        #         res = response.json()
+        #         # return stale data because we are promising availability
+        #         if key in res['kv_store']:
+        #             value = res['kv_store'][key][0]
+        #             my_time = res['kv_store'][key][1]
+        #             return getSuccess(value, my_time)
+        #     return getValueForKeyError()
 
     ### put key with data fields "val = value" and "causal_payload = causal_payload" ###
     def put(self, key):
@@ -325,21 +338,7 @@ class BasicGetPut(Resource):
                 except:
                     pass
 
-
-        # duplicated keys are NOT allowed across partitions
-        # 1) find key by loop through all partitions, use PartitionView GET
-        #   if key found:
-        #       flag = 0
-        #   else: flag = 1
-        # 2) base on if key found or not, do appropriate actions
-        #   if flag == 0:
-        #       overwrite the old same key!
-        #   else: add key into a random partition!
-
-#-----------------------------------------------------------------------#
-#-----------------------------------------------------------------------#
         # partition --> 1st node --> key?
-
         for partnum in b.part_dic:
             node = b.part_dic[partnum][0] # 1st node in that partition
             if node == b.my_IP:
@@ -362,8 +361,6 @@ class BasicGetPut(Resource):
                     app.logger.info('KEY FOUND')
                     r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
                     return make_response(jsonify(r.json()), r.status_code)
-
-        app.logger.info('KEY NOT FOUND AT ALL')
 
         # key was never found in the system! Means new key! Add to random partiton!
         random_part_id = random.randint(0,len(b.part_dic)-1)
@@ -389,12 +386,6 @@ class BasicGetPut(Resource):
             r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
             return make_response(jsonify(r.json()), r.status_code)
 
-
-        app.logger.info("out of the loop I've been working on?")
-
-
-#-----------------------------------------------------------------------#
-#-----------------------------------------------------------------------#
 
 ############################################
 # class for GET node details
