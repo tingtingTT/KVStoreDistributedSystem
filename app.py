@@ -293,6 +293,16 @@ def partitionChange():
                         b.part_dic[new_id].append(node)
                         # del b.world_proxy[node]
             b.world_proxy = {}
+            if noDuplicates:
+                for node in current_proxy_arr:
+                    app.logger.info('????????^^^^&??????$#$#?')
+                    app.logger.info('I am giving the new partition this ID: ' + new_id)
+                    requests.put("http://"+node+"/changeView", data={
+                    'part_id': new_id,
+                    'part_dic':json.dumps(b.part_dic),
+                    'node_ID_dic': json.dumps(b.node_ID_dic),
+                    'part_clock': b.part_clock,
+                    'world_proxy': '{}'})
 
             app.logger.info('????????^^^^&??????????')
             app.logger.info('my world Prox' + str(b.world_proxy))
@@ -312,13 +322,7 @@ def partitionChange():
                 #     reDistributeKeys()
                 # after a new partition is formed, update new partition's world_proxy and part_id
                 # if cmp(partDic, b.part_dic) != 0 and b.part_dic[str(len(b.part_dic)-1)][0] != b.my_IP:
-            for node in current_proxy_arr:
-                requests.put("http://"+node+"/changeView", data={
-                'part_id': new_id,
-                'part_dic':json.dumps(b.part_dic),
-                'node_ID_dic': json.dumps(b.node_ID_dic),
-                'part_clock': b.part_clock,
-                'world_proxy': '{}'})
+
                 # # partition 0 will wait until all partitions have the same partition dic
                 # if(b.my_part_id == "0" and b.my_IP == b.part_dic["0"][0]):
                 #     for part_id in b.part_dic.keys():
@@ -675,24 +679,29 @@ class UpdateWorldProxy(Resource):
             b.world_proxy = their_world_prox
             b.part_clock+=1
             return
+        elif their_part_clock == b.part_clock and cmp(b.world_proxy, their_world_prox) != 0:
 
-        for partition in b.part_dic.keys():
-            replicas = b.part_dic[partition]
-            for rep in replicas:
-                for i in range(0, len(their_proxies)):
-                    if rep == their_proxies[i]:
-                        return
+            for value in b.part_dic.itervalues():
+                if any(their_proxies) in value:
+                    return
 
-        # Take out everything we know about thier proxies
-        for node in b.world_proxy.keys():
-            if b.world_proxy[node] == their_id:
-                del b.world_proxy[node]
+            # for partition in b.part_dic.keys():
+            #     replicas = b.part_dic[partition]
+            #     for rep in replicas:
+            #         for i in range(0, len(their_proxies)):
+            #             if rep == their_proxies[i]:
+            #                 return
 
-        if their_proxies[0] != "":
-            # Reload world_proxy with new data
-            for node in their_proxies:
-                b.world_proxy[node] = their_id
-        return
+            # Take out everything we know about thier proxies
+            for node in b.world_proxy.keys():
+                if b.world_proxy[node] == their_id:
+                    del b.world_proxy[node]
+
+            if their_proxies[0] != "":
+                # Reload world_proxy with new data
+                for node in their_proxies:
+                    b.world_proxy[node] = their_id
+            return
 
 #########################################
 # class for adding a node
