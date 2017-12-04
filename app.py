@@ -26,6 +26,7 @@ class BaseClass():
         self.part_clock = 0
         self.my_part_id = "-1"
         self.world_proxy = {}
+        self.down_nodes = []
         # get variables form ENV variables
         self.my_IP = os.environ.get('IPPORT', None)
         self.IP = socket.gethostbyname(socket.gethostname())
@@ -72,9 +73,6 @@ def update(add_node_ip_port, part_id):
     else:
         b.part_dic[part_id] = [add_node_ip_port]
 
-    if part_id == b.my_part_id:
-        b.partition_view.append(add_node_ip_port)
-
 
 
 ###########################################################
@@ -96,10 +94,6 @@ def initVIEW():
             proxies = b.VIEW_list[b.K * numPart:]
             for proxy in proxies:
                 b.world_proxy[proxy] = "0"
-
-
-    if getReplicaArr is not None and b.my_part_id != "-1":
-        b.partition_view = getReplicaArr() + getProxyArr()
 
     return
 
@@ -148,7 +142,7 @@ def worldSync():
             except requests.exceptions.Timeout:
                 pass
 
-    for node in b.partition_view:
+    for node in getPartitionView() + b.down_nodes:
         if res[node] != 0: #if the ping result is saying the node is down
             if node in getReplicaArr():
                 b.part_dic[b.my_part_id].remove(node)
@@ -158,6 +152,8 @@ def worldSync():
                     #TODO:redistribute Keys, exclude my part_id
                     for node in getReplicaArr():
                         demoteNode(node)
+                if node not in down_nodes:
+                    b.down_nodes.append(node)
 
             # This means you're only responsible for removing nodes that forward to you.
             if node in (getProxyArr()):
@@ -172,6 +168,8 @@ def worldSync():
                     # res = response.json()
                     # node_kv_store = res['kv_store']
                     demoteNode(node)
+                if node in b.down_nodes:
+                    b.down_nodes.remove(node)
             # case when a node is removed from replica array, we are not pinging it anyway cause it is not in our view
             elif node in getProxyArr() and len(getReplicaArr())<b.K:
                 promoteNode(node)
@@ -244,9 +242,11 @@ def partitionChange():
             if cmp(partDic, b.part_dic) == 0:
                 reDistributeKeys()
             # after a new partition is formed, update new partition's world_proxy and part_id
-            elif cmp(partDic, b.part_dic) != 0 and b.part_dic[str(len(b.part_dic)-1)][0] != b.my_IP:
-                requests.put("http://"+current_proxy_arr[0]+"/changeView", data={
-                'partition_view':','.join(current_proxy_arr),
+        elif cmp(partDic, b.part_dic) != 0 and b.part_dic[str(len(b.part_dic)-1)][0] != b.my_IP:
+            new_id = str(len(b.part_dic)-1)
+            for node in current_proxy_arr:
+                requests.put("http://"+node+"/changeView", data={
+                'part_id': new_id,
                 'part_dic':json.dumps(b.part_dic),
                 'node_ID_dic': json.dumps(b.node_ID_dic),
                 'part_clock': b.part_clock,
@@ -302,8 +302,8 @@ def isProxy():
 ######################################
 def getReplicaArr():
     if b.my_part_id != "-1":
-        if len(b.part_dic[b.my_part_id]) > 0:
-            return b.part_dic[b.my_part_id]
+        if len(b.part_dic[str(b.my_part_id)]) > 0:
+            return b.part_dic[str(b.my_part_id)]
     else:
         return []
 
@@ -316,6 +316,9 @@ def getProxyArr():
         return proxy_nodes
     else:
         return []
+
+def getPartitionView():
+    return getReplicaArr() + getProxyArr()
 
 ######################################################
 # class for PUT key after random node is chosen
@@ -551,7 +554,8 @@ class GetAllReplicas(Resource):
 class ChangeView(Resource):
     def put(self):
         data = request.form.to_dict()
-        b.partition_view = data['partition_view'].split(',')
+        b.my_part_id = data['part_id']
+        b.part_clock = int(data['part_clock'])
         b.part_dic = json.loads(data['part_dic'])
         b.node_ID_dic = json.loads(data['node_ID_dic'])
         b.world_proxy = json.loads(data['world_proxy'])
@@ -599,7 +603,7 @@ class AddNode(Resource):
         data = request.form.to_dict()
         add_node_ip_port = data['ip_port']
         # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
-        if add_node_ip_port not in b.partition_view:
+        if add_node_ip_port not in getPartitionView():
             # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
             update(add_node_ip_port, b.my_part_id)
         return jsonify({'node': b.my_IP, 'ip_port': add_node_ip_port})
@@ -614,13 +618,11 @@ class RemoveNode(Resource):
         data = request.form.to_dict()
         remove_node_ip_port = data['ip_port']
         # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
-        if remove_node_ip_port in b.partition_view:
-            b.partition_view.remove(remove_node_ip_port)
             # b.part_clock += 1
-            if remove_node_ip_port in getReplicaArr():
-                b.part_dic[b.my_part_id].remove(remove_node_ip_port)
-            elif remove_node_ip_port in getProxyArr():
-                del b.world_proxy[remove_node_ip_port]
+        if remove_node_ip_port in getReplicaArr():
+            b.part_dic[b.my_part_id].remove(remove_node_ip_port)
+        elif remove_node_ip_port in getProxyArr():
+            del b.world_proxy[remove_node_ip_port]
         return jsonify({'node': b.my_IP, 'remove_ip_port': remove_node_ip_port})
 
 ############################################
@@ -645,13 +647,12 @@ class UpdateView(Resource):
 
         if type == 'add':
             # automatically add node as proxy
-            if add_node_ip_port not in b.partition_view:
+            if add_node_ip_port not in getPartitionView():
                 update(add_node_ip_port, b.my_part_id)
                 # give the brand new node its attributes using current node's data
                 requests.put('http://'+ add_node_ip_port +'/update_datas',data={
                 'part_id':b.my_part_id,
                 'world_proxy':json.dumps(b.world_proxy),
-                'partition_view':','.join(b.partition_view),
                 'part_dic':json.dumps(b.part_dic),
                 'part_clock': b.part_clock,
                 'kv_store':'{}',
@@ -660,7 +661,7 @@ class UpdateView(Resource):
                 })
                 # not already added
                 # tell all nodes in view, add the new node
-                for node in b.partition_view:
+                for node in getPartitionView():
                     if node != add_node_ip_port and node != b.my_IP:
                         try:
                             requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
@@ -672,7 +673,8 @@ class UpdateView(Resource):
                 return addSameNode()
         # remove a node
         elif type == 'remove':
-            if add_node_ip_port not in (getReplicaArr() + getProxyArr()) and add_node_ip_port not in b.partition_view:
+            # TODO
+            if add_node_ip_port not in (getReplicaArr() + getProxyArr()) and add_node_ip_port not in getPartitionView():
                 return removeNodeDoesNotExist()
             else:
                 if add_node_ip_port in getReplicaArr():
@@ -680,9 +682,7 @@ class UpdateView(Resource):
                 elif add_node_ip_port in getProxyArr():
                     del b.world_proxy[add_node_ip_port]
 
-                b.partition_view.remove(add_node_ip_port)
-
-                for node in b.partition_view:
+                for node in getPartitionView():
                     if node != add_node_ip_port and node != b.my_IP:
                         try:
                             requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
@@ -697,7 +697,6 @@ class UpdateDatas(Resource):
     def put(self):
         data = request.form.to_dict()
         b.my_part_id = data['part_id']
-        b.partition_view = data['partition_view'].split(',')
         b.kv_store = json.loads(data['kv_store'])
         b.node_ID_dic = json.loads(data['node_ID_dic'])
         b.part_dic = json.loads(data['part_dic'])
@@ -721,7 +720,6 @@ class ResetData(Resource):
         #     return proxy_forward(request.url_rule,request.method,request.form.to_dict(),request.args)
         b.kv_store={} # key:[value, time_stamp]
         b.node_ID_dic={} # ip_port: node_ID
-        b.partition_view=[]
         b.kv_store_vector_clock=[0]*8 # is the pay load
         b.part_dic[b.my_part_id]=[] # a list of current replicas IP:Port
         b.world_proxy[b.my_part_id]=[] # a list of current proxies  IP:Port
@@ -781,9 +779,9 @@ class GetKeyDetails(Resource):
 ######################################
 class GetNodeState(Resource):
     def get(self):
-        return jsonify({'my_part_id':b.my_part_id, 'part_dic': b.part_dic, 'world_proxy': b.world_proxy, 'partition_view': b.partition_view, 'proxy_array': getProxyArr(), 'replica_array': getReplicaArr(),
+        return jsonify({'my_part_id':b.my_part_id, 'part_dic': b.part_dic, 'world_proxy': b.world_proxy, 'partition_view': getPartitionView(), 'proxy_array': getProxyArr(), 'replica_array': getReplicaArr(),
                 'kv_store': b.kv_store, 'node_ID_dic': b.node_ID_dic, 'part_clock': b.part_clock,
-                'kv_store_vector_clock': '.'.join(map(str,b.kv_store_vector_clock)), 'node_ID': b.node_ID_dic[b.my_IP], 'is_proxy': isProxy(), 'my_IP': b.my_IP})
+                'kv_store_vector_clock': '.'.join(map(str,b.kv_store_vector_clock)), 'is_proxy': isProxy(), 'my_IP': b.my_IP})
         # return:
 ############################################
 # class for GET view details -- helper
@@ -798,7 +796,7 @@ class Views(Resource):
 ######################################
 class Availability(Resource):
     def get(self):
-        return ping(b.partition_view)
+        return ping(getPartitionView()+b.down_nodes)
 
 ############################################
 # promote proxy to a replica
@@ -810,7 +808,8 @@ def promoteNode(promote_node_IP):
     if promote_node_IP in getProxyArr():
         del b.world_proxy[promote_node_IP] # remove node in prx list
     # ChangeView on node
-    requests.put("http://"+promote_node_IP+"/changeView", data={'partition_view':','.join(b.partition_view),
+    requests.put("http://"+promote_node_IP+"/changeView", data={
+    'part_id': b.my_part_id,
     'part_dic':json.dumps(b.part_dic),
     'node_ID_dic': json.dumps(b.node_ID_dic),
     'part_clock': b.part_clock,
@@ -827,7 +826,8 @@ def demoteNode(demote_node_IP):
     if demote_node_IP in getReplicaArr():
         del b.world_proxy[demote_node_IP]
     b.world_proxy[demote_node_IP] = b.my_part_id
-    requests.put("http://"+demote_node_IP+"/changeView", data={'partition_view':','.join(b.partition_view),
+    requests.put("http://"+demote_node_IP+"/changeView", data={
+    'par_id': b.my_part_id,
     'part_dic':json.dumps(b.part_dic),
     'part_clock': b.part_clock,
     'node_ID_dic': json.dumps(b.node_ID_dic),
@@ -901,11 +901,13 @@ class SyncPartDic(Resource):
             b.part_clock += 1
             b.part_dic = their_part_dic
             for replica in getReplicaArr():
-                requests.put("http://"+replica+"/changeView", data={'partition_view':','.join(b.partition_view),
-                'part_dic':json.dumps(b.part_dic),
-                'node_ID_dic': json.dumps(b.node_ID_dic),
-                'part_clock': b.part_clock,
-                'world_proxy': json.dumps(b.world_proxy)})
+                if replica != b.my_IP:
+                    requests.put("http://"+replica+"/changeView", data={
+                    'part_id': b.my_part_id,
+                    'part_dic':json.dumps(b.part_dic),
+                    'node_ID_dic': json.dumps(b.node_ID_dic),
+                    'part_clock': b.part_clock,
+                    'world_proxy': json.dumps(b.world_proxy)})
                 # if replica != b.my_IP:
                 #     response = requests.get('http://'+replica+'/getPartDic')
                 #     res = response.json()
@@ -920,7 +922,7 @@ class SyncPartDic(Resource):
 # num_nodes_in_view is the number of nodes in world view
 # get a node info successfully
 def getSuccess(value, time_stamp):
-    num_nodes_in_view = len(b.partition_view)
+    num_nodes_in_view = len(getPartitionView())
     response = jsonify({'result': 'success', 'value': value, 'partition_id': b.my_part_id, 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
     response.status_code = 200
     return response
