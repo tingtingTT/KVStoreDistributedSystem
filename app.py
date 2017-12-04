@@ -249,67 +249,78 @@ def partitionChange():
             for i in range (0, numNewPartition):
                 current_proxy_arr = world_proxy_arr[b.K*i : b.K*(i+1)]
                 noDuplicates = noDuplicatePartitions(current_proxy_arr)
-                if b.part_dic.get(new_id) == None:
-                    b.part_dic[new_id] = []
-                for node in current_proxy_arr:
-                    b.part_dic[new_id].append(node)
-                    del b.world_proxy[node]
-            if noDuplicates:
-            # ask the new partition if they already have the up to date dictionary
-                response = requests.get('http://'+b.part_dic[new_id][0]+'/getPartDic')
-                res = response.json()
-                partDic = json.loads(res['part_dic'])
-                if cmp(partDic, b.part_dic) == 0:
-                    reDistributeKeys()
-                # after a new partition is formed, update new partition's world_proxy and part_id
-                elif cmp(partDic, b.part_dic) != 0 and b.part_dic[str(len(b.part_dic)-1)][0] != b.my_IP:
+                if noDuplicates:
+                    app.logger.info('No duplicates found, so make a new partition entry')
+                    if b.part_dic.get(new_id) == None:
+                        b.part_dic[new_id] = []
                     for node in current_proxy_arr:
-                        requests.put("http://"+node+"/changeView", data={
-                        'part_id': new_id,
-                        'part_dic':json.dumps(b.part_dic),
-                        'node_ID_dic': json.dumps(b.node_ID_dic),
-                        'part_clock': b.part_clock,
-                        'world_proxy': json.dumps(b.world_proxy)})
-                # partition 0 will wait until all partitions have the same partition dic
-                if(b.my_part_id == "0" and b.my_IP == b.part_dic["0"][0]):
-                    for part_id in b.part_dic.keys():
-                        if part_id != b.my_part_id:
-                            replicaArr = b.part_dic[part_id]
-                            requests.put('http://'+replicaArr[0]+'/syncPartDic', data = {'part_clock': b.part_clock, 'part_dic': json.dumps(b.part_dic)})
-                    i = 1
-                    tries = 1
-                    previousDic = b.part_dic
-                    while(i < len(b.part_dic)):
-                        replicaArr = b.part_dic[str(i)]
-                        response = requests.get('http://'+replicaArr[0]+'/getPartDic')
-                        res = response.json()
-                        partDic = json.loads(res['part_dic'])
-                        if cmp(partDic, previousDic) == 0:
-                            previousDic = partDic
-                            i += 1
-                        tries +=1
-                        if tries > 2*len(b.part_dic):
-                            break
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info('At the end of making a new partition my world proxy arr' + str(b.world_proxy))
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                else:
-                    randID = b.my_part_id
-                    while(randID == b.my_part_id):
-                        randID = random.randint(0,len(b.part_dic)-1)
-                    response = requests.get('http://'+b.part_dic[randID][0]+'/getWorldProx')
-                    res = response.json()
-                    if res['part_clock'] > b.part_clock:
-                        b.world_proxy = res['world_proxy']
+                        b.part_dic[new_id].append(node)
+                        del b.world_proxy[node]
+                # else:
+                #     for node in current_proxy_arr:
+                #         del b.world_proxy[node]
+
+            # if noDuplicates:
+            # ask the new partition if they already have the up to date dictionary
+                # response = requests.get('http://'+b.part_dic[new_id][0]+'/getPartDic')
+                # res = response.json()
+                # partDic = json.loads(res['part_dic'])
+                # if cmp(partDic, b.part_dic) == 0:
+                #     reDistributeKeys()
+                # after a new partition is formed, update new partition's world_proxy and part_id
+                # if cmp(partDic, b.part_dic) != 0 and b.part_dic[str(len(b.part_dic)-1)][0] != b.my_IP:
+            for node in current_proxy_arr:
+                requests.put("http://"+node+"/changeView", data={
+                'part_id': new_id,
+                'part_dic':json.dumps(b.part_dic),
+                'node_ID_dic': json.dumps(b.node_ID_dic),
+                'part_clock': b.part_clock,
+                'world_proxy': json.dumps(b.world_proxy)})
+                # # partition 0 will wait until all partitions have the same partition dic
+                # if(b.my_part_id == "0" and b.my_IP == b.part_dic["0"][0]):
+                #     for part_id in b.part_dic.keys():
+                #         if part_id != b.my_part_id:
+                #             replicaArr = b.part_dic[part_id]
+                #             requests.put('http://'+replicaArr[0]+'/syncPartDic', data = {'part_clock': b.part_clock, 'part_dic': json.dumps(b.part_dic)})
+                    # i = 1
+                    # tries = 1
+                    # previousDic = b.part_dic
+                    # while(i < len(b.part_dic)):
+                    #     replicaArr = b.part_dic[str(i)]
+                    #     response = requests.get('http://'+replicaArr[0]+'/getPartDic')
+                    #     res = response.json()
+                    #     partDic = json.loads(res['part_dic'])
+                    #     if cmp(partDic, previousDic) == 0:
+                    #         previousDic = partDic
+                    #         i += 1
+                    #     tries +=1
+                    #     if tries > 2*len(b.part_dic):
+                    #         break
+            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            app.logger.info('At the end of making a new partition my world proxy arr' + str(b.world_proxy))
+            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                # else:
+                #     randID = b.my_part_id
+                #     while(randID == b.my_part_id):
+                #         randID = random.randint(0,len(b.part_dic)-1)
+                #     response = requests.get('http://'+b.part_dic[randID][0]+'/getWorldProx')
+                #     res = response.json()
+                #     if res['part_clock'] > b.part_clock:
+                #         b.world_proxy = res['world_proxy']
 
                 # re-distribute keys
-                reDistributeKeys()
+                # reDistributeKeys()
 # returns true if there are no duplicate partitions
 def noDuplicatePartitions(proxies):
+    app.logger.info('checking for partitions with these proxies: ' + str(proxies))
+
     for part_id in b.part_dic.keys():
         replicas = b.part_dic[part_id]
+        app.logger.info('check against these replicas: ' + str(replicas))
         if replicas == proxies:
+            app.logger.info('found one! return false')
             return False
+    app.logger.info('no duplicate partiitions')
     b.part_clock += 1
     return True
 ############################################
