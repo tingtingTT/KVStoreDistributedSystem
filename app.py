@@ -178,6 +178,11 @@ def worldSync():
         # Sync world_proxy arrays across clusters
         ##########################################
         syncAll()
+        app.logger.info('!!!!!^^^!!!!!&&&&&!!!!!!!!!!!!')
+        app.logger.info('Done with syncAll')
+        app.logger.info('World_prox = ' + str(b.world_proxy))
+        app.logger.info('!!!!!^^^!!!!!&&&&&!!!!!!!!!!!!')
+
         partitionChange()
 
 def syncAll():
@@ -253,8 +258,15 @@ def partitionChange():
     #         i += 1
 
 
+
+
     if len(b.world_proxy.keys()) >= b.K:
-        app.logger.info('!!!!!$$$!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info('?????????????????????????')
+        app.logger.info('my world Prox' + str(b.world_proxy))
+        app.logger.info('my part Dic' + str(b.part_dic))
+        app.logger.info('?????????????????????????')
+
+        app.logger.info('!!!!!^^^!!!!!&&&&&!!!!!!!!!!!!')
         app.logger.info('i want to make a new partition!')
         app.logger.info('!!!!!$$$!!!!!!!!!!!!!!!!!!!!!!!')
         numNewPartition = len(b.world_proxy) / b.K
@@ -277,6 +289,12 @@ def partitionChange():
                     for node in current_proxy_arr:
                         b.part_dic[new_id].append(node)
                         del b.world_proxy[node]
+
+            app.logger.info('?????????????????????????')
+            app.logger.info('my world Prox' + str(b.world_proxy))
+            app.logger.info('my part Dic' + str(b.part_dic))
+            app.logger.info('?????????????????????????')
+            time.sleep(200)
                 # else:
                 #     for node in current_proxy_arr:
                 #         del b.world_proxy[node]
