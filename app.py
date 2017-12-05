@@ -640,6 +640,38 @@ class UpdateView(Resource):
 
         if type == 'add':
             # automatically add node as proxy
+            # if (add_node_ip_port in b.part_dic):
+                # if a node is a replica and it's down
+
+            # # check if client is putting a duplicate node
+            # #----------------------------------------------------------------#
+            # for partNum in b.part_dic:
+            #     listOfReps = b.part_dic[partNum]
+            #     for node in listOfReps:
+            #         if node == add_node_ip_port:
+            #             addSameNode()
+            # # exit loop if node is not in any partition
+            #
+            # # Is node in world_proxy?
+            # for prox in b.world_proxy:
+            #     if prox == add_node_ip_port:
+            #         addSameNode()
+            # # exit loop if node is not a proxy neither
+            # #----------------------------------------------------------------#
+
+
+            #----------------------------------------------------------------#
+            if(add_node_ip_port != b.my_IP):
+                if(add_node_ip_port in b.node_ID_dic):
+                    IP = [add_node_ip_port.split(':')[0]]
+                    up = [os.system("ping -c 1 "+IP+" -W 1")]
+                    if(up == 0):
+                        return addSameNode()
+            else:
+                return addSameNode()
+
+            #----------------------------------------------------------------#
+
             if add_node_ip_port not in getPartitionView():
                 update(add_node_ip_port, b.my_part_id)
                 # give the brand new node its attributes using current node's data
@@ -667,7 +699,19 @@ class UpdateView(Resource):
         # remove a node
         elif type == 'remove':
             # TODO
-            if add_node_ip_port not in (getReplicaArr() + getProxyArr()) and add_node_ip_port not in getPartitionView():
+        #----------------------------------------------------------------#
+            if(add_node_ip_port != b.my_IP):
+                if(add_node_ip_port in b.node_ID_dic):
+                    IP = [add_node_ip_port.split(':')[0]]
+                    up = [os.system("ping -c 1 "+IP+" -W 1")]
+                    if(up != 0):
+                        return removeNodeDoesNotExist()
+            else:
+                return cusError('Cant remove itself',404)
+            # need to remove node from other partition ?
+        #----------------------------------------------------------------#
+
+            if (add_node_ip_port not in (getReplicaArr() + getProxyArr())) and (add_node_ip_port not in getPartitionView()):
                 return removeNodeDoesNotExist()
             else:
                 if add_node_ip_port in getReplicaArr():
@@ -957,7 +1001,7 @@ def addSameNode():
     return response
 # add node successful
 def addNodeSuccess(node_ID):
-    response = jsonify({'msg': 'success', 'number_of_partitions': len(b.part_dic)})
+    response = jsonify({'result': 'success', 'number_of_partitions': len(b.part_dic), 'partition_id' : b.my_part_id})
     response.status_code = 200
     return response
 
@@ -986,7 +1030,7 @@ def invalidInput():
     return response
 
 def putSuccess():
-    response = jsonify({'msg':'PUT success!'})
+    response = jsonify({'result':'PUT success!'})
     response.status_code = 201
     return response
 
