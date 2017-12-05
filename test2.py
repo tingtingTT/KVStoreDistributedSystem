@@ -335,7 +335,7 @@ def is_balanced_on_avg(counts, threshold=0.9):
 
 
 if __name__ == "__main__":
-    container_name = 'app'
+    container_name = 'bbb'
     hostname = 'localhost'
     network = 'mynet'
     sudo = 'sudo'
@@ -343,7 +343,8 @@ if __name__ == "__main__":
     # TODO PLEASE NOTE THAT YOU CAN RUN INDIVIDUAL TESTS AS BELOW, IF YOU WOULD LIKE, INSTEAD OF ALL NINE.
     # for instance, the below line would run only tests 2 and 9.
     # tests_to_run = [2, 9]
-    tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    # tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    tests_to_run = [1]
 
     if 1 in tests_to_run:
         """ TESTS FOR PARTITION ADJUSTMENTS """
@@ -365,10 +366,10 @@ if __name__ == "__main__":
 
             resp_dict = add_node_to_kvs(hostname, nodes[0], n1)
             number_of_partitions = resp_dict.get('number_of_partitions')
-            if number_of_partitions != 3:
-                print("ERROR: the number of partitions should be 3, but it is " + str(number_of_partitions))
+            if number_of_partitions != 2:
+                print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
             else:
-                print("OK, the number of partitions is 3")
+                print("OK, the number of partitions is 2")
             resp_dict = add_node_to_kvs(hostname, nodes[2], n2)
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 3:
@@ -377,24 +378,27 @@ if __name__ == "__main__":
                 print("OK, the number of partitions is 3")
             resp_dict = add_node_to_kvs(hostname, n1, n3)
             number_of_partitions = resp_dict.get('number_of_partitions')
-            if number_of_partitions != 4:
-                print("ERROR: the number of partitions should be 4, but it is " + str(number_of_partitions))
+            if number_of_partitions != 3:
+                print("ERROR: the number of partitions should be 3, but it is " + str(number_of_partitions))
             else:
-                print("OK, the number of partitions is 4")
+                print("OK, the number of partitions is 3")
 
             print("Deleting nodes ...")
+            # deleted 1 node (7-1 = 6)
             resp_dict = delete_node_from_kvs(hostname, n3, nodes[0])
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 3:
                 print("ERROR: the number of partitions should be 3, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 3")
+            # deleted 2 nodes (7-2 = 5)
             resp_dict = delete_node_from_kvs(hostname, n3, nodes[2])
             number_of_partitions = resp_dict.get('number_of_partitions')
-            if number_of_partitions != 3:
-                print("ERROR: the number of partitions should be 3, but it is " + str(number_of_partitions))
+            if number_of_partitions != 2:
+                print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
             else:
-                print("OK, the number of partitions is 3")
+                print("OK, the number of partitions is 2")
+            # deleted 3 nodes (7-3 = 4)
             resp_dict = delete_node_from_kvs(hostname, n3, n2)
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 2:
