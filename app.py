@@ -134,6 +134,16 @@ def worldSync():
         # promote your own shit first
         if len(getProxyArr()) > 0:
             promoteNode(getProxyArr()[0])
+
+            b.part_clock += 1
+            # Need to sync part dics now
+            for partID in b.part_dic.keys():
+                if partID != b.my_part_id:
+                    replicas = b.part_dic[partID]
+                    requests.put('http://'+replicas[0]+'/syncPartDic', data={
+                    'part_clock': b.part_clock,
+                    'part_dic': json.dumps(b.part_dic)
+                    })
         # start asking other people
         elif len(b.world_proxy.keys())>0:
             proxies = b.world_proxy.keys()
@@ -155,6 +165,8 @@ def worldSync():
                     'part_clock': b.part_clock,
                     'part_dic': json.dumps(b.part_dic)
                     })
+            else:
+                # No proxies to replace replica, so demote everyone
     #####################################################################
         # Sync everything in our partition. promote or demote as Necessary
     #####################################################################
