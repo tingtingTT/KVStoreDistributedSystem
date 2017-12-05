@@ -130,7 +130,7 @@ def worldSync():
     if len(getReplicaArr())<b.K and len(getProxyArr()) > 0:
         promoteNode(getProxyArr()[0])
     #####################################################################
-    # Sync everything in our partition. promote or demote as Necessary
+        # Sync everything in our partition. promote or demote as Necessary
     #####################################################################
     while(True):
         tryNode = getReplicaArr()[random.randint(0, len(getReplicaArr())-1)]
@@ -170,7 +170,13 @@ def worldSync():
                     # response = requests.get('http://'+node+"/getNodeState")
                     # res = response.json()
                     # node_kv_store = res['kv_store']
-                    demoteNode(node)
+                    nodeInPartition = False
+                    for value in b.part_dic.itervalues():
+                        if node in value:
+                            nodeInPartition = True
+                    if nodeInPartition == False:
+                        app.logger.info('IM GOING TO DEMOTE ' + str(node))
+                        demoteNode(node)
                 if node in b.down_nodes:
                     b.down_nodes.remove(node)
             # case when a node is removed from replica array, we are not pinging it anyway cause it is not in our view
