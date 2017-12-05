@@ -74,7 +74,6 @@ def update(add_node_ip_port, part_id):
         b.part_dic[part_id] = [add_node_ip_port]
 
 
-
 ###########################################################
 # functon to init world view using user input VIEW
 #####################################################
