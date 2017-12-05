@@ -88,6 +88,8 @@ def initVIEW():
             part_id = str(i/b.K)
             if b.VIEW_list[i] == b.my_IP:
                 b.my_part_id = part_id
+                app.logger.info('Im setting my part id to ' + part_id + ' in init')
+
             update(b.VIEW_list[i], part_id)
 
         if numProx > 0:
@@ -145,6 +147,7 @@ def worldSync():
     for node in getPartitionView() + b.down_nodes:
         if res[node] != 0: #if the ping result is saying the node is down
             if node in getReplicaArr():
+                # TODO: chang to promoting any proxy in word_proxy
                 b.part_dic[b.my_part_id].remove(node)
                 if len(getProxyArr())>0:
                     promoteNode(getProxyArr()[0])
@@ -293,10 +296,11 @@ def partitionChange():
                         b.part_dic[new_id].append(node)
                         # del b.world_proxy[node]
             b.world_proxy = {}
-            if noDuplicates:
+            if noDuplicatePartitions(current_proxy_arr):
                 for node in current_proxy_arr:
-                    app.logger.info('????????^^^^&??????$#$#?')
+                    app.logger.info('????**********???$#$#?')
                     app.logger.info('I am giving the new partition this ID: ' + new_id)
+                    time.sleep(20)
                     requests.put("http://"+node+"/changeView", data={
                     'part_id': new_id,
                     'part_dic':json.dumps(b.part_dic),
@@ -653,6 +657,7 @@ class ChangeView(Resource):
         b.part_dic = json.loads(data['part_dic'])
         b.node_ID_dic = json.loads(data['node_ID_dic'])
         b.world_proxy = json.loads(data['world_proxy'])
+        app.logger.info('Im setting my part id to ' + str(data['part_id'] + ' in changeView'))
         return
 
 ###################################
@@ -669,6 +674,7 @@ class UpdateWorldProxy(Resource):
         app.logger.info('their proxies: ' + str(their_proxies))
 
         if cmp(b.world_proxy, their_world_prox) == 0:
+            app.logger.info('Our world proxies are equal!@#$%')
             return
         # elif b.my_IP in their_proxies:
         #     return
@@ -757,6 +763,7 @@ class UpdateView(Resource):
             # automatically add node as proxy
             if add_node_ip_port not in getPartitionView():
                 update(add_node_ip_port, b.my_part_id)
+                app.logger.info('my world proxy after adding the node: ' + str(b.world_proxy))
                 # give the brand new node its attributes using current node's data
                 requests.put('http://'+ add_node_ip_port +'/update_datas',data={
                 'part_id':b.my_part_id,
@@ -769,6 +776,7 @@ class UpdateView(Resource):
                 })
                 # not already added
                 # tell all nodes in view, add the new node
+
                 for node in getPartitionView():
                     if node != add_node_ip_port and node != b.my_IP:
                         try:
@@ -803,6 +811,7 @@ class UpdateView(Resource):
 ######################################
 class UpdateDatas(Resource):
     def put(self):
+
         data = request.form.to_dict()
         b.my_part_id = data['part_id']
         b.kv_store = json.loads(data['kv_store'])
@@ -810,6 +819,7 @@ class UpdateDatas(Resource):
         b.part_dic = json.loads(data['part_dic'])
         b.world_proxy = json.loads(data['world_proxy'])
         b.kv_store_vector_clock = map(int,data['kv_store_vector_clock'].split('.'))
+        app.logger.info('Im setting my part id to ' + str(data['part_id'] + ' in updateDatas'))
         return
 
 ############################################
@@ -919,6 +929,7 @@ def promoteNode(promote_node_IP):
     if promote_node_IP in getProxyArr():
         del b.world_proxy[promote_node_IP] # remove node in prx list
     # ChangeView on node
+    app.logger.info('I am giving the node this ID in promote node: ' + b.my_part_id)
     requests.put("http://"+promote_node_IP+"/changeView", data={
     'part_id': b.my_part_id,
     'part_dic':json.dumps(b.part_dic),
@@ -937,6 +948,7 @@ def demoteNode(demote_node_IP):
     if demote_node_IP in getReplicaArr():
         del b.world_proxy[demote_node_IP]
     b.world_proxy[demote_node_IP] = b.my_part_id
+    app.logger.info('I am giving the node this ID in deomote node: ' + b.my_part_id)
     requests.put("http://"+demote_node_IP+"/changeView", data={
     'part_id': b.my_part_id,
     'part_dic':json.dumps(b.part_dic),
@@ -1071,7 +1083,7 @@ def addSameNode():
     return response
 # add node successful
 def addNodeSuccess(node_ID):
-    response = jsonify({'msg': 'success', 'number_of_partitions': len(b.part_dic)})
+    response = jsonify({'result': 'success', 'number_of_partitions': len(b.part_dic)})
     response.status_code = 200
     return response
 
