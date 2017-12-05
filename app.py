@@ -228,6 +228,10 @@ def syncWorldProx():
                 'part_clock': b.part_clock})
 
 def partitionChange():
+    app.logger.info('IM IN PARTITION CHANGE')
+    if len(getReplicaArr())< b.K:
+        app.logger.info('I NEED TO CHANGE THE PARTITION DIC')
+
     if len(b.world_proxy.keys()) >= b.K:
         numNewPartition = len(b.world_proxy) / b.K
         numLeftProxy = len(b.world_proxy) % b.K
@@ -301,6 +305,7 @@ def isProxy():
 def getReplicaArr():
     if b.my_part_id != "-1":
         if len(b.part_dic[str(b.my_part_id)]) > 0:
+            app.logger
             return b.part_dic[str(b.my_part_id)]
     else:
         return []
@@ -547,6 +552,19 @@ class GetAllReplicas(Resource):
         return getAllReplicasSuccess()
 
 ###################################
+# class for update view when promoting or demoting
+#######################################
+class PromoteDemote(Resource):
+    def put(self):
+        data = request.form.to_dict()
+        b.part_clock = int(data['part_clock'])
+        b.my_part_id = data['part_id']
+        b.part_dic = json.loads(data['part_dic'])
+        b.node_ID_dic = json.loads(data['node_ID_dic'])
+        b.world_proxy = json.loads(data['world_proxy'])
+        return
+
+###################################
 # class for update view for node
 #######################################
 class ChangeView(Resource):
@@ -695,6 +713,7 @@ class UpdateView(Resource):
                 return removeNodeDoesNotExist()
             else:
                 if add_node_ip_port in getReplicaArr():
+                    app.logger.info('IM DELETING FROM MY PART DIC')
                     b.part_dic[b.my_part_id].remove(add_node_ip_port)
                 elif add_node_ip_port in getProxyArr():
                     del b.world_proxy[add_node_ip_port]
@@ -829,7 +848,7 @@ def promoteNode(promote_node_IP):
     if promote_node_IP in getProxyArr():
         del b.world_proxy[promote_node_IP] # remove node in prx list
     # ChangeView on node
-    requests.put("http://"+promote_node_IP+"/changeView", data={
+    requests.put("http://"+promote_node_IP+"/promoteDemote", data={
     'part_id': b.my_part_id,
     'part_dic':json.dumps(b.part_dic),
     'node_ID_dic': json.dumps(b.node_ID_dic),
@@ -847,7 +866,7 @@ def demoteNode(demote_node_IP):
     if demote_node_IP in getReplicaArr():
         del b.world_proxy[demote_node_IP]
     b.world_proxy[demote_node_IP] = b.my_part_id
-    requests.put("http://"+demote_node_IP+"/changeView", data={
+    requests.put("http://"+demote_node_IP+"/promoteDemote", data={
     'part_id': b.my_part_id,
     'part_dic':json.dumps(b.part_dic),
     'part_clock': b.part_clock,
@@ -925,7 +944,7 @@ class SyncPartDic(Resource):
                     'node_ID_dic': json.dumps(b.node_ID_dic),
                     'part_clock': b.part_clock,
                     'world_proxy': json.dumps(b.world_proxy)})
-        
+
         return jsonify({'part_dic':json.dumps(b.part_dic)})
 
 ####################################################
@@ -1115,6 +1134,7 @@ api.add_resource(Views, '/views')
 api.add_resource(Availability, '/availability')
 api.add_resource(GetKeyDetails, '/getKeyDetails/<string:key>')
 api.add_resource(ChangeView, '/changeView')
+api.add_resource(PromoteDemote, '/promoteDemote')
 api.add_resource(UpdateWorldProxy, '/updateWorldProxy')
 api.add_resource(PartitionView,'/partitionView/<string:key>')
 api.add_resource(SyncPartDic,'/syncPartDic') # part_id and part_clock
