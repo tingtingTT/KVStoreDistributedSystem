@@ -166,27 +166,32 @@ def worldSync():
                     'part_dic': json.dumps(b.part_dic)
                     })
             else:
-                 # my partition no longer hold, change my part_dic
+                # my partition no longer hold, change my part_dic
                 # No proxies to replace replica, so demote everyone
+                # let the left over proxies point to nect partition
+                rehomeProxies = getReplicaArr()
+                for node in rehomeProxies:
+                    demoteNode(node)
                 del b.part_dic[b.my_part_id]
                 b.part_dic = renewPartDic()
                 # redistribute my keys
                 reDistributeKeys()
                 b.part_clock += 1
-                # let the left over proxies point to nect partition
-                rehomeProxies = getReplicaArr()
                 # rehome nodes to partID at 0.
                 for node in rehomeProxies:
                     b.world_proxy[node] = "0"
 
                 # give my stuff to the next one in the part_dic
-                for replica in b.part_dic[next_part_id]:
-                    requests.put("http://"+replica+"/changeView", data={
-                    'part_id': "0",
-                    'part_dic':json.dumps(b.part_dic),
-                    'node_ID_dic': json.dumps(b.node_ID_dic),
+                for partID in b.part_dic.keys():
+                    replicas = b.part_dic[partID]
+                    requests.put('http://'+replicas[0]+'/syncPartDic', data={
                     'part_clock': b.part_clock,
-                    'world_proxy': json.dumps(b.world_proxy)})
+                    'part_dic': json.dumps(b.part_dic)
+                    })
+                requests.put('http://'+b.part_dic["0"][0]+'/addToWorldProxy', data={
+                'proxy_array': ','.join(rehomeProxies),
+                'part_clock': b.part_clock
+                })
     #####################################################################
         # Sync everything in our partition. promote or demote as Necessary
     #####################################################################
@@ -944,7 +949,7 @@ def demoteNode(demote_node_IP):
     # remove me iff my clock is behind others
     # if checkLessEq(node_kv_clock, b.kv_store_vector_clock):
     if demote_node_IP in getReplicaArr():
-        del b.world_proxy[demote_node_IP]
+        b.part_dic[b.my_part_id].remove(demote_node_IP)
     b.world_proxy[demote_node_IP] = b.my_part_id
     requests.put("http://"+demote_node_IP+"/promoteDemote", data={
     'part_id': b.my_part_id,
@@ -967,6 +972,19 @@ class GetPartitionId(Resource):
     # "partition_id": 3,
     def get(self):
         return jsonify({'result':'success','partition_id': b.my_part_id})
+
+
+####################################################################
+# add proxy nodes into my world proxy
+##############################################################
+class AddToWorldProxy(Resource):
+    def put(self):
+        data = request.form.to_dict()
+        proxy_array = data['proxy_array'].split(',')
+        their_clock = int(data['part_clock'])
+        if their_clock > b.part_clock:
+            for node in proxy_array:
+                b.world_proxy[node] = b.my_part_id
 
 ####################################################################
 # merges current vector clock with sender's vector clock
@@ -1223,6 +1241,8 @@ api.add_resource(WriteKey, '/writeKey')
 api.add_resource(SetPartID, '/setPartID')
 api.add_resource(ResetKv, '/resetKv')
 api.add_resource(DeleteProxy, '/deleteProxy')
+api.add_resource(AddToWorldProxy, '/addToWorldProxy')
+
 
 if __name__ == '__main__':
     handler = RotatingFileHandler('foo.log', maxBytes=10000, backupCount=1)
