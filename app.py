@@ -193,8 +193,8 @@ def worldSync():
         ##########################################
         # Sync world_proxy arrays across clusters
         ##########################################
-        syncAll()
-        partitionChange()
+        # syncAll()
+        # partitionChange()
 
 def syncAll():
     syncWorldProx()
@@ -874,19 +874,54 @@ def demoteNode(demote_node_IP):
     # remove me iff my clock is behind others
     # if checkLessEq(node_kv_clock, b.kv_store_vector_clock):
     if demote_node_IP in getReplicaArr():
-        del b.world_proxy[demote_node_IP]
-    b.world_proxy[demote_node_IP] = b.my_part_id
+        b.part_dic[b.my_part_id].remove(demote_node_IP)
+    # check if my partition no longer hold or not
+    if (len(getReplicaArr()) < b.K):
+        # my partition no longer hold, change my part_dic
+        del b.part_dic[b.my_part_id]
+        b.part_dic = renewPartDic()
+        # redistribute my keys
+        reDistributeKeys()
+        b.part_clock += 1
+        # let the left over proxies point to nect partition
+        rehomeProxies = getReplicaArr()
+        # rehome nodes to partID at 0.
+        for node in rehomeProxies:
+            b.world_proxy[node] = "0"
+
+        # give my stuff to the next one in the part_dic
+        for replica in b.part_dic[next_part_id]:
+            requests.put("http://"+replica+"/changeView", data={
+            'part_id': "0",
+            'part_dic':json.dumps(b.part_dic),
+            'node_ID_dic': json.dumps(b.node_ID_dic),
+            'part_clock': b.part_clock,
+            'world_proxy': json.dumps(b.world_proxy)})
+    # else my partition still holds, just add the node into my worldProxy
+    else:
+        b.world_proxy[demote_node_IP] = b.my_part_id
+
+
     requests.put("http://"+demote_node_IP+"/promoteDemote", data={
     'part_id': b.my_part_id,
     'part_dic':json.dumps(b.part_dic),
     'part_clock': b.part_clock,
     'node_ID_dic': json.dumps(b.node_ID_dic),
     'world_proxy': json.dumps(b.world_proxy)})
-
-
     return
     # else, since I'm newer than others, when it comes my turn to ping others,
     # I'll eventually demote someone else. Therefore, do nothing
+
+####################################################################
+# renew part_dic when some partition no longer holds
+##############################################################
+def renewPartDic():
+    i = 0
+    for part_index in b.part_dic.keys():
+        replica_array = b.part_dic[part_index]
+        new_part_dic[i] = replica_array
+        i += 1
+    return new_part_dic
 
 ####################################################################
 # merges current vector clock with sender's vector clock
