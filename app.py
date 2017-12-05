@@ -711,21 +711,21 @@ class UpdateView(Resource):
             # need to remove node from other partition ?
         #----------------------------------------------------------------#
 
-            if (add_node_ip_port not in (getReplicaArr() + getProxyArr())) and (add_node_ip_port not in getPartitionView()):
-                return removeNodeDoesNotExist()
-            else:
-                if add_node_ip_port in getReplicaArr():
-                    b.part_dic[b.my_part_id].remove(add_node_ip_port)
-                elif add_node_ip_port in getProxyArr():
-                    del b.world_proxy[add_node_ip_port]
+            #if (add_node_ip_port not in (getReplicaArr() + getProxyArr())) and (add_node_ip_port not in getPartitionView()):
+            #    return removeNodeDoesNotExist()
+            #else:
+            if add_node_ip_port in getReplicaArr():
+                b.part_dic[b.my_part_id].remove(add_node_ip_port)
+            elif add_node_ip_port in getProxyArr():
+                del b.world_proxy[add_node_ip_port]
 
-                for node in getPartitionView():
-                    if node != add_node_ip_port and node != b.my_IP:
-                        try:
-                            requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
-                        except requests.exceptions.ConnectionError:
-                            pass
-                return removeNodeSuccess()
+            for node in getPartitionView():
+                if node != add_node_ip_port and node != b.my_IP:
+                    try:
+                        requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
+                    except requests.exceptions.ConnectionError:
+                        pass
+            return removeNodeSuccess()
 
 ############################################
 # class for updating datas
