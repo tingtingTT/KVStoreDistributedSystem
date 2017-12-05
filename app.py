@@ -104,7 +104,11 @@ def initVIEW():
 ###########################################################
 def gossip(IP):
     for key in b.kv_store:
-        response = requests.get('http://'+IP+'/getKeyDetails/' + key, data = {'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'val':b.kv_store[key][0], 'timestamp': b.kv_store[key][1], 'nodeID':b.node_ID_dic[b.my_IP]})
+        response = requests.get('http://'+IP+'/getKeyDetails/' + key, data = {
+        'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)),
+        'val':b.kv_store[key][0],
+        'timestamp': b.kv_store[key][1],
+        'nodeID':b.node_ID_dic[b.my_IP]})
         res = response.json()
         # return response
         b.kv_store[key] = (res['value'], res['timestamp'])
@@ -126,8 +130,13 @@ def heartbeat():
 # function to check which node is up and down with ping, then promode and demote nodes
 ######################################################################################
 def worldSync():
-    if len(getReplicaArr())<b.K and len(getProxyArr()) > 0:
-        promoteNode(getProxyArr()[0])
+    # if len(getReplicaArr())<b.K:
+    #     if len(getProxyArr()) > 0:
+    #         promoteNode(getProxyArr()[0])
+    #     else:
+            #TODO: ASK ANOTHER PARTITION
+            # if len(getReplicaArr())<b.K and len(b.world_proxy) > 0:
+            #     promoteNode(b.world_proxy.keys()[0])
     #####################################################################
         # Sync everything in our partition. promote or demote as Necessary
     #####################################################################
@@ -702,7 +711,7 @@ class UpdateView(Resource):
                             requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
                         except requests.exceptions.ConnectionError:
                             pass
-
+                time.sleep(1)
                 return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
             else:
                 return addSameNode()
@@ -845,7 +854,8 @@ def promoteNode(promote_node_IP):
     # only proxy nodes come into this func
     # update own things
     b.part_dic[b.my_part_id].append(promote_node_IP) # add node to rep list
-    if promote_node_IP in getProxyArr():
+    # if promote_node_IP in worldProxy:
+    if promote_node_IP in b.world_proxy:
         del b.world_proxy[promote_node_IP] # remove node in prx list
     # ChangeView on node
     requests.put("http://"+promote_node_IP+"/promoteDemote", data={
