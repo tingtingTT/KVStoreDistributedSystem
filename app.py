@@ -25,7 +25,7 @@ class BaseClass():
         self.kv_store_vector_clock=[0]*8 # is the pay load
         self.part_clock = 0
         self.my_part_id = "-1"
-        self.world_proxy = {}
+        self.world_proxy = {} # node: id
         self.down_nodes = []
         # get variables form ENV variables
         self.my_IP = os.environ.get('IPPORT', None)
@@ -72,7 +72,6 @@ def update(add_node_ip_port, part_id):
 
     else:
         b.part_dic[part_id] = [add_node_ip_port]
-
 
 
 ###########################################################
