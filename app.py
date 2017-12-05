@@ -302,10 +302,13 @@ def partitionChange():
                         b.part_dic[new_id].append(node)
                         # del b.world_proxy[node]
             b.world_proxy = {}
-            if noDuplicatePartitions(current_proxy_arr):
+            app.logger.info('21328563298342')
+            app.logger.info('current proxy arr = ' + str(current_proxy_arr))
+
+            if noDuplicates:
                 for node in current_proxy_arr:
-                    app.logger.info('????**********???$#$#?')
-                    app.logger.info('I am giving the new partition this ID: ' + new_id)
+                    app.logger.info('83238358728383572')
+                    app.logger.info('I am giving' +node+ ' this ID: ' + new_id)
                     time.sleep(20)
                     requests.put("http://"+node+"/changeView", data={
                     'part_id': new_id,
@@ -658,12 +661,20 @@ class GetAllReplicas(Resource):
 class ChangeView(Resource):
     def put(self):
         data = request.form.to_dict()
-        b.my_part_id = data['part_id']
-        b.part_clock = int(data['part_clock'])
-        b.part_dic = json.loads(data['part_dic'])
-        b.node_ID_dic = json.loads(data['node_ID_dic'])
-        b.world_proxy = json.loads(data['world_proxy'])
-        app.logger.info('Im setting my part id to ' + str(data['part_id'] + ' in changeView'))
+        their_part_clock = int(data['part_clock'])
+        app.logger.info('2948572390485729038457')
+        app.logger.info('In change view.')
+        app.logger.info('My clock =  ' + str(b.part_clock))
+        app.logger.info('their clock =  ' + str(their_part_clock))
+
+        if their_part_clock > b.part_clock:
+            b.part_clock = int(data['part_clock'])
+            b.my_part_id = data['part_id']
+            b.part_dic = json.loads(data['part_dic'])
+            b.node_ID_dic = json.loads(data['node_ID_dic'])
+            b.world_proxy = json.loads(data['world_proxy'])
+            app.logger.info('Im setting my part id to ' + str(data['part_id'] + ' in changeView'))
+
         return
 
 ###################################
