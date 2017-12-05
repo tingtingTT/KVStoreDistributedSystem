@@ -166,7 +166,27 @@ def worldSync():
                     'part_dic': json.dumps(b.part_dic)
                     })
             else:
+                 # my partition no longer hold, change my part_dic
                 # No proxies to replace replica, so demote everyone
+                del b.part_dic[b.my_part_id]
+                b.part_dic = renewPartDic()
+                # redistribute my keys
+                reDistributeKeys()
+                b.part_clock += 1
+                # let the left over proxies point to nect partition
+                rehomeProxies = getReplicaArr()
+                # rehome nodes to partID at 0.
+                for node in rehomeProxies:
+                    b.world_proxy[node] = "0"
+
+                # give my stuff to the next one in the part_dic
+                for replica in b.part_dic[next_part_id]:
+                    requests.put("http://"+replica+"/changeView", data={
+                    'part_id': "0",
+                    'part_dic':json.dumps(b.part_dic),
+                    'node_ID_dic': json.dumps(b.node_ID_dic),
+                    'part_clock': b.part_clock,
+                    'world_proxy': json.dumps(b.world_proxy)})
     #####################################################################
         # Sync everything in our partition. promote or demote as Necessary
     #####################################################################
@@ -568,6 +588,19 @@ class BasicGetPut(Resource):
         ########################################
         if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
             return cusError('payloads are concurrent',404)
+
+
+
+####################################################################
+# renew part_dic when some partition no longer holds
+##############################################################
+def renewPartDic():
+    i = 0
+    for part_index in b.part_dic.keys():
+        replica_array = b.part_dic[part_index]
+        new_part_dic[i] = replica_array
+        i += 1
+    return new_part_dic
 
 ############################################
 # class for GET node details
