@@ -684,18 +684,105 @@ class UpdateView(Resource):
                 return addSameNode()
         # remove a node
         elif type == 'remove':
-            if add_node_ip_port in getReplicaArr():
-                b.part_dic[b.my_part_id].remove(add_node_ip_port)
-            elif add_node_ip_port in getProxyArr():
-                del b.world_proxy[add_node_ip_port]
+            if(add_node_ip_port != b.my_IP):
+                # where is node and should I forward it or not
+                partFound = 0
+                proxFound = 0
+                forward = 0
 
-            for node in getPartitionView():
-                if node != add_node_ip_port and node != b.my_IP:
-                    try:
-                        requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
-                    except requests.exceptions.ConnectionError:
-                        pass
-            return removeNodeSuccess()
+                if(add_node_ip_port in b.world_proxy):
+                    proxFound = 1
+                    if(b.world_proxy[add_node_ip_port] == b.my_part_id):
+                        foward = 0
+                    else:
+                        forward = b.world_proxy[add_node_ip_port] # partition ID
+
+                if(proxFound != 1):
+                    for partID in b.part_dic:
+                        if(add_node_ip_port in b.part_dic[partID])
+                            partFound = 1
+                            if(partID == b.my_part_id):
+                                forward = 0
+                                break
+                            else:
+                                forward = partID
+                                break
+
+                if(partFound == 1):
+                    if(forward == 0):
+                        b.part_dic[b.my_part_id].remove(add_node_ip_port)
+                        for node in getPartitionView():
+                            if node != add_node_ip_port and node != b.my_IP:
+                                try:
+                                    requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
+                                except requests.exceptions.ConnectionError:
+                                    pass
+                        return removeNodeSuccess()
+
+                    #forward node removal to the partition it belongs to
+                    else:
+                        for node in b.part_dic[forward]: # nodes in partition ID
+                            if(node != add_node_ip_port):
+                                r = requests.put('http://'+node+'/kv-store/update_view?type=remove',data = {'ip_port': add_node_ip_port})
+                                if(r.status_code != 404 or r.status_code != '404'):
+                                    return make_response(jsonify(r.json()),r.status_code)
+
+                        return cusError('Forwarding was not successful',404)
+
+                elif(proxFound == 1):
+                    if(forward == 0):
+                        del b.world_proxy[add_node_ip_port]
+                        for node in getPartitionView():
+                            if node != add_node_ip_port and node != b.my_IP:
+                                try:
+                                    requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
+                                except requests.exceptions.ConnectionError:
+                                    pass
+                        return removeNodeSuccess()
+
+                    else:
+                        for node in b.part_dic[forward]: # nodes in partition ID
+                            if(node != add_node_ip_port):
+                                r = requests.put('http://'+node+'/kv-store/update_view?type=remove',data = {'ip_port': add_node_ip_port})
+                                if(r.status_code != 404 or r.status_code != '404'):
+                                    return make_response(jsonify(r.json()),r.status_code)
+                                
+                        return cusError('Forwarding was not successful',404)
+                else:
+                    return cusError('You fucked up hard',404)
+            else:
+                return cusError('I cannot remove myself',404)
+            # if(add_node_ip_port != b.my_IP):
+            #     found = 0
+            #     for l in b.part_dic.values():
+            #         if (add_node_ip_port in l):
+            #             found = 1
+            #     if(found == 1 or add_node_ip_port in b.world_proxy):
+            #         IP = add_node_ip_port.split(':')[0]
+            #         up = os.system("ping -c 1 "+IP+" -W 1")
+            #         if(up == 0):
+            #             if(found == 1):
+            #                 for key in b.part_dic:
+            #                     if(add_node_ip_port in b.part_dic[key]):
+            #                         b.part_dic[key].remove(add_node_ip_port)
+            #
+            #             else:
+            #                 del b.world_proxy[add_node_ip_port]
+            #                 return cusError('node removed from proxy',200)
+            #
+            #             for node in getPartitionView():
+            #                 if node != add_node_ip_port and node != b.my_IP:
+            #                     try:
+            #                         requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
+            #                     except requests.exceptions.ConnectionError:
+            #                         pass
+            #             return removeNodeSuccess()
+            #         else:
+            #             return cusError('Cannot remove a dead node',404)
+            #     else:
+            #         return cusError('Cannot remove non existing node',404)
+            # else:
+            #     return cusError('I cannot remove myself',404)
 
 ############################################
 # class for updating datas
