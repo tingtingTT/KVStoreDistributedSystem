@@ -343,8 +343,8 @@ if __name__ == "__main__":
     # TODO PLEASE NOTE THAT YOU CAN RUN INDIVIDUAL TESTS AS BELOW, IF YOU WOULD LIKE, INSTEAD OF ALL NINE.
     # for instance, the below line would run only tests 2 and 9.
     # tests_to_run = [2, 9]
-    # tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
     tests_to_run = [1]
+    # tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
     if 1 in tests_to_run:
         """ TESTS FOR PARTITION ADJUSTMENTS """
@@ -361,8 +361,11 @@ if __name__ == "__main__":
 
             print("Adding 3 nodes")
             n1 = start_new_node(container_name, K=2, net=network, sudo=sudo)
+            time.sleep(3)
             n2 = start_new_node(container_name, K=2, net=network, sudo=sudo)
+            time.sleep(3)
             n3 = start_new_node(container_name, K=2, net=network, sudo=sudo)
+            time.sleep(3)
 
             resp_dict = add_node_to_kvs(hostname, nodes[0], n1)
             number_of_partitions = resp_dict.get('number_of_partitions')
@@ -552,7 +555,7 @@ if __name__ == "__main__":
             if PRINT_HTTP_RESPONSES:
                 print(result)
             time.sleep(1)
-            d = send_put_request(hostname, nodes[0], keys[0], 11, causal_payload='')
+            d = send_put_request(hostname, nodes[0], keys[0], 11, causal_payload='9.9.9.9')
             d = send_get_request(hostname, nodes[2], keys[0], causal_payload=d['causal_payload'])
             if int(d['value']) == 11:
                 print("OK, the key-value store works after spamming")
@@ -611,6 +614,7 @@ if __name__ == "__main__":
             part_nodes = [find_node(nodes, ip_port) for ip_port in members]
             print("key %s belongs to partition %s with nodes %s and %s" % (
                 keys[0], partition_id, part_nodes[0], part_nodes[1]))
+            time.sleep(TB)
             print("Disconnecting both nodes to verify that the key is not available")
             disconnect_node(part_nodes[0], network, sudo)
             disconnect_node(part_nodes[1], network, sudo)
@@ -748,7 +752,7 @@ if __name__ == "__main__":
                 print("Adding a new node")
                 new_node = start_new_node(container_name, net='mynet', sudo=sudo)
                 kvs_nodes.append(new_node)
-                status_code, result = add_node_to_kvs(hostname, kvs_nodes[0], new_node)
+                result = add_node_to_kvs(hostname, kvs_nodes[0], new_node)
                 time.sleep(10)
                 counts = get_keys_distribution(hostname, kvs_nodes, keys)
                 for k, v in counts.iteritems():
