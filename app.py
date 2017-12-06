@@ -350,7 +350,6 @@ def syncDemote():
                 previousWorldProx = their_world_proxy
                 previousDic = their_part_dic
             else:
-                time.sleep(1)
                 syncDemote()
 
 #################################
