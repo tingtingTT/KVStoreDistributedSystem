@@ -1212,9 +1212,9 @@ class SyncPartDic(Resource):
         if b.part_clock < their_part_clock:
             b.part_clock += 1
             b.part_dic = their_part_dic
-            for replica in getReplicaArr():
-                if replica != b.my_IP:
-                    requests.put("http://"+replica+"/changeView", data={
+            for node in GetPartitionMembers():
+                if node != b.my_IP:
+                    requests.put("http://"+node+"/changeView", data={
                     'part_id': b.my_part_id,
                     'part_dic':json.dumps(b.part_dic),
                     'node_ID_dic': json.dumps(b.node_ID_dic),
@@ -1245,15 +1245,15 @@ class SyncPartDicProxy(Resource):
                 app.logger.info('MY IP'+str(b.my_IP)+"...MY ID"+str(b.my_part_id))
 
         app.logger.info('I AM BEFORE FOR LOOP...')
-        for replica in getReplicaArr():
+        for node in getPartitionMembers():
             app.logger.info('I JUST GOT TO FOR LOOP...')
-            if replica != b.my_IP:
+            if node != b.my_IP:
                 app.logger.info('PART ID PASSING...'+str(b.my_part_id))
                 app.logger.info('PART DIC PASSING...'+str(b.part_dic))
                 app.logger.info('WORLD PROXY PASSING...'+str(b.world_proxy))
                 app.logger.info('CLOCK PASSING...'+str(b.part_clock))
                 app.logger.info('I AM CALLING CHANGEVIEW AT '+str(replica))
-                requests.put("http://"+replica+"/changeView", data={
+                requests.put("http://"+node+"/changeView", data={
                 'part_id': b.my_part_id,
                 'part_dic':json.dumps(b.part_dic),
                 'node_ID_dic': json.dumps(b.node_ID_dic),
