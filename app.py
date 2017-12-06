@@ -184,6 +184,7 @@ def worldSync():
 
             # give my stuff to the next one in the part_dic
 
+            app.logger.info('BEFORE CALLING SYNCPARTDIC: NEW PART DIC'+str(new_part_dic))
             for partID in new_part_dic.keys():
                 app.logger.info('DICTIONARY'+str(b.part_dic))
                 replicas = b.part_dic[partID]
@@ -1070,6 +1071,7 @@ class SyncPartDicProxy(Resource):
         for part_id in b.part_dic.keys():
             if b.my_IP in b.part_dic[part_id]:
                 b.my_part_id = part_id
+                app.logger.info('MY IP'+str(b.my_IP)+"...MY ID"+str(b.my_part_id))
 
         app.logger.info('I AM BEFORE FOR LOOP...')
         for replica in getReplicaArr():
