@@ -890,9 +890,9 @@ class UpdateView(Resource):
                             requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
                         except requests.exceptions.ConnectionError:
                             pass
-                # time.sleep(3)
+                time.sleep(2)
                 return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
-            else
+            else:
                 return addSameNode()
         # remove a node
         elif type == 'remove':
@@ -907,11 +907,12 @@ class UpdateView(Resource):
                         data = response.json()
                         members = data['partition_members'].split(',')
                         app.logger.info('RESULT' + str(data['result']))
-                        app.logger.info('PARTITION MEMBER' + str(member))
+                        app.logger.info('PARTITION MEMBER' + str(members))
                         if data['result'] == "success":
                             for member in members:
                                 if member != add_node_ip_port:
                                     response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
+                                    time.sleep(2)
                                     return make_response(jsonify(response.json()), response.status_code)
 
                 else:
