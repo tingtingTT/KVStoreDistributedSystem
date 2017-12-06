@@ -890,7 +890,7 @@ class UpdateView(Resource):
                             requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
                         except requests.exceptions.ConnectionError:
                             pass
-                time.sleep(3)
+                # time.sleep(3)
                 return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
             else
                 return addSameNode()
@@ -1271,7 +1271,10 @@ def addSameNode():
     return response
 # add node successful
 def addNodeSuccess(node_ID):
-    response = jsonify({'result': 'success', 'number_of_partitions': len(b.part_dic)})
+    addpart = 0
+    if len(b.world_proxy) == b.K:
+        addpart = 1
+    response = jsonify({'result': 'success', 'number_of_partitions': len(b.part_dic)+addpart})
     response.status_code = 200
     return response
 

@@ -335,8 +335,8 @@ def is_balanced_on_avg(counts, threshold=0.9):
 
 
 if __name__ == "__main__":
-    container_name = 'hw4'
-    hostname = '192.168.99.100'
+    container_name = 'bbb'
+    hostname = 'localhost'
     network = 'mynet'
     sudo = 'sudo'
 
@@ -345,7 +345,6 @@ if __name__ == "__main__":
     # tests_to_run = [2, 9]
     tests_to_run = [1]
     # tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-
 
     if 1 in tests_to_run:
         """ TESTS FOR PARTITION ADJUSTMENTS """
@@ -362,8 +361,11 @@ if __name__ == "__main__":
 
             print("Adding 3 nodes")
             n1 = start_new_node(container_name, K=2, net=network, sudo=sudo)
+            time.sleep(3)
             n2 = start_new_node(container_name, K=2, net=network, sudo=sudo)
+            time.sleep(3)
             n3 = start_new_node(container_name, K=2, net=network, sudo=sudo)
+            time.sleep(3)
 
             resp_dict = add_node_to_kvs(hostname, nodes[0], n1)
             number_of_partitions = resp_dict.get('number_of_partitions')
