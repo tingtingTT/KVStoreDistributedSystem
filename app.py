@@ -681,6 +681,7 @@ class UpdateView(Resource):
 
                 return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
             else:
+                time.sleep(1)
                 return addSameNode()
         # remove a node
         elif type == 'remove':
@@ -699,7 +700,7 @@ class UpdateView(Resource):
 
                 if(proxFound != 1):
                     for partID in b.part_dic:
-                        if(add_node_ip_port in b.part_dic[partID])
+                        if(add_node_ip_port in b.part_dic[partID]):
                             partFound = 1
                             if(partID == b.my_part_id):
                                 forward = 0
@@ -717,6 +718,7 @@ class UpdateView(Resource):
                                     requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                                 except requests.exceptions.ConnectionError:
                                     pass
+                        time.sleep(1)
                         return removeNodeSuccess()
 
                     #forward node removal to the partition it belongs to
@@ -738,6 +740,7 @@ class UpdateView(Resource):
                                     requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                                 except requests.exceptions.ConnectionError:
                                     pass
+                        time.sleep(1)
                         return removeNodeSuccess()
 
                     else:
@@ -746,7 +749,7 @@ class UpdateView(Resource):
                                 r = requests.put('http://'+node+'/kv-store/update_view?type=remove',data = {'ip_port': add_node_ip_port})
                                 if(r.status_code != 404 or r.status_code != '404'):
                                     return make_response(jsonify(r.json()),r.status_code)
-                                
+
                         return cusError('Forwarding was not successful',404)
                 else:
                     return cusError('You fucked up hard',404)
@@ -1059,7 +1062,7 @@ def addNodeSuccess(node_ID):
 
 # remove node success
 def removeNodeSuccess():
-    response = jsonify({'result': 'success', 'number_of_partitions': len(b.part_dic)})
+    response = jsonify({'result': 'success', 'number_of_partitions': len(b.part_dic), 'partition_id' : b.my_part_id})
     response.status_code = 200
     return response
 
