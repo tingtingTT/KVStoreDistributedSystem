@@ -967,7 +967,7 @@ class UpdateView(Resource):
 
                         return cusError('Forwarding was not successful',404)
                 else:
-                    return jsonify({'Node not found part dic':b.part_dic,'world prox':b.world_proxy,})#cusError('You fucked up hard',404)
+                    return make_response(jsonify({'Node not found part dic':b.part_dic,'world prox':b.world_proxy,}),404)
             else:
                 return cusError('I cannot remove myself',404)
 
