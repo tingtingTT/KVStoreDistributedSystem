@@ -369,18 +369,23 @@ if __name__ == "__main__":
                 print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 2")
+            time.sleep(2)
+
             resp_dict = add_node_to_kvs(hostname, nodes[2], n2)
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 3:
                 print("ERROR: the number of partitions should be 3, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 3")
+            time.sleep(2)
+
             resp_dict = add_node_to_kvs(hostname, n1, n3)
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 3:
                 print("ERROR: the number of partitions should be 3, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 3")
+            time.sleep(2)
 
             print("Deleting nodes ...")
             # deleted 1 node (7-1 = 6)
@@ -390,6 +395,7 @@ if __name__ == "__main__":
                 print("ERROR: the number of partitions should be 3, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 3")
+            time.sleep(2)
             # deleted 2 nodes (7-2 = 5)
             resp_dict = delete_node_from_kvs(hostname, n3, nodes[2])
             number_of_partitions = resp_dict.get('number_of_partitions')
@@ -397,6 +403,7 @@ if __name__ == "__main__":
                 print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 2")
+            time.sleep(2)
             # deleted 3 nodes (7-3 = 4)
             resp_dict = delete_node_from_kvs(hostname, n3, n2)
             number_of_partitions = resp_dict.get('number_of_partitions')
@@ -404,6 +411,8 @@ if __name__ == "__main__":
                 print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 2")
+            time.sleep(2)
+
             print("Stopping the kvs")
         except Exception as e:
             print("Exception in test 1")

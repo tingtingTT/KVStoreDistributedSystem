@@ -329,7 +329,8 @@ def demoteAllNodes():
 def syncDemote():
     previousWorldProx = b.world_proxy
     previousDic = b.part_dic
-    for replicas in b.part_dic[b.my_part_id]:
+    for index in b.part_dic.keys():
+        replicas = b.part_dic[index]
         for node in replicas:
             # check world proxy and dic
             response = requests.get('http://'+node+'/getPartDic')
@@ -1191,6 +1192,7 @@ class GetPartitionMembers(Resource):
 
         try:
             id_list = b.part_dic[part_id]
+            id_list += getProxyArr()
         except KeyError:
             return cusError('partition dictionary does not have key '+part_id,404)
 
@@ -1212,7 +1214,7 @@ class SyncPartDic(Resource):
         if b.part_clock < their_part_clock:
             b.part_clock += 1
             b.part_dic = their_part_dic
-            for node in GetPartitionMembers():
+            for node in getPartitionView():
                 if node != b.my_IP:
                     requests.put("http://"+node+"/changeView", data={
                     'part_id': b.my_part_id,
@@ -1236,29 +1238,30 @@ class SyncPartDicProxy(Resource):
         app.logger.info('MY CLOCK'+str(b.part_clock))
 
         # if b.part_clock < their_part_clock:
-        b.part_clock += 1
-        b.part_dic = their_part_dic
-        b.world_proxy = their_world_proxy
-        for part_id in b.part_dic.keys():
-            if b.my_IP in b.part_dic[part_id]:
-                b.my_part_id = part_id
-                app.logger.info('MY IP'+str(b.my_IP)+"...MY ID"+str(b.my_part_id))
+        if b.part_clock < their_part_clock:
+            b.part_clock += 1
+            b.part_dic = their_part_dic
+            b.world_proxy = their_world_proxy
+            for part_id in b.part_dic.keys():
+                if b.my_IP in b.part_dic[part_id]:
+                    b.my_part_id = part_id
+                    app.logger.info('MY IP'+str(b.my_IP)+"...MY ID"+str(b.my_part_id))
 
-        app.logger.info('I AM BEFORE FOR LOOP...')
-        for node in getPartitionMembers():
-            app.logger.info('I JUST GOT TO FOR LOOP...')
-            if node != b.my_IP:
-                app.logger.info('PART ID PASSING...'+str(b.my_part_id))
-                app.logger.info('PART DIC PASSING...'+str(b.part_dic))
-                app.logger.info('WORLD PROXY PASSING...'+str(b.world_proxy))
-                app.logger.info('CLOCK PASSING...'+str(b.part_clock))
-                app.logger.info('I AM CALLING CHANGEVIEW AT '+str(replica))
-                requests.put("http://"+node+"/changeView", data={
-                'part_id': b.my_part_id,
-                'part_dic':json.dumps(b.part_dic),
-                'node_ID_dic': json.dumps(b.node_ID_dic),
-                'part_clock': b.part_clock,
-                'world_proxy': json.dumps(b.world_proxy)})
+            app.logger.info('I AM BEFORE FOR LOOP...')
+            for node in getPartitionView():
+                app.logger.info('I JUST GOT TO FOR LOOP...')
+                if node != b.my_IP:
+                    app.logger.info('PART ID PASSING...'+str(b.my_part_id))
+                    app.logger.info('PART DIC PASSING...'+str(b.part_dic))
+                    app.logger.info('WORLD PROXY PASSING...'+str(b.world_proxy))
+                    app.logger.info('CLOCK PASSING...'+str(b.part_clock))
+                    app.logger.info('I AM CALLING CHANGEVIEW AT '+str(getReplicaArr()))
+                    requests.put("http://"+node+"/changeView", data={
+                    'part_id': b.my_part_id,
+                    'part_dic':json.dumps(b.part_dic),
+                    'node_ID_dic': json.dumps(b.node_ID_dic),
+                    'part_clock': b.part_clock,
+                    'world_proxy': json.dumps(b.world_proxy)})
 
         return jsonify({'part_dic':json.dumps(b.part_dic)})
 
@@ -1314,7 +1317,7 @@ def addNodeSuccess(node_ID):
     addpart = 0
     if len(b.world_proxy) == b.K:
         addpart = 1
-    response = jsonify({'result': 'success', 'number_of_partitions': len(b.part_dic)+addpart, 'partition_id' : b.my_part_id})
+    response = jsonify({'result': 'success', 'number_of_partitions': len(b.part_dic), 'partition_id' : b.my_part_id})
     response.status_code = 200
     return response
 
