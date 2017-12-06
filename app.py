@@ -891,9 +891,9 @@ class UpdateView(Resource):
                 return addSameNode()
         # remove a node
         elif type == 'remove':
-             if add_node_ip_port not in (getReplicaArr() + getProxyArr()):
-                # check if any other partiton has it
-                # ?????????????????????????????????????????????????????????????????????????????????
+            if add_node_ip_port not in (getReplicaArr() + getProxyArr()):
+            # check if any other partiton has it
+            # ?????????????????????????????????????????????????????????????????????????????????
                 for index in b.part_dic.keys():
                     if index != b.my_part_id:
                         replicas = b.part_dic[index]
@@ -908,23 +908,23 @@ class UpdateView(Resource):
                                     response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
                                     return make_response(jsonify(response.json()), response.status_code)
 
-                else:
-                    return removeNodeDoesNotExist()
+                        else:
+                            return removeNodeDoesNotExist()
             else:
-                if add_node_ip_port in getReplicaArr():
-                    app.logger.info('IM DELETING FROM MY PART DIC')
-                    b.part_dic[b.my_part_id].remove(add_node_ip_port)
-                elif add_node_ip_port in getProxyArr():
-                    del b.world_proxy[add_node_ip_port]
+            if add_node_ip_port in getReplicaArr():
+                app.logger.info('IM DELETING FROM MY PART DIC')
+                b.part_dic[b.my_part_id].remove(add_node_ip_port)
+            elif add_node_ip_port in getProxyArr():
+                del b.world_proxy[add_node_ip_port]
 
-                for node in getPartitionView():
-                    if node != add_node_ip_port and node != b.my_IP:
-                        try:
-                            requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
-                        except requests.exceptions.ConnectionError:
-                            pass
-                syncDemote()
-                return removeNodeSuccess()
+            for node in getPartitionView():
+                if node != add_node_ip_port and node != b.my_IP:
+                    try:
+                        requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
+                    except requests.exceptions.ConnectionError:
+                        pass
+            syncDemote()
+            return removeNodeSuccess()
 
             # if(add_node_ip_port != b.my_IP):
             #     # where is node and should I forward it or not
