@@ -162,7 +162,6 @@ def worldSync():
             # Need to sync part dics now
             for partID in b.part_dic.keys():
                 if partID != b.my_part_id:
-                    replicas = b.part_dic[partID]
                     requests.put('http://'+replicas[0]+'/syncPartDic', data={
                     'part_clock': b.part_clock,
                     'part_dic': json.dumps(b.part_dic)
@@ -176,15 +175,18 @@ def worldSync():
     app.logger.info('PART DIC.....' + str(b.part_dic))
     app.logger.info('ID.....' + str(b.my_part_id))
     replicas = b.part_dic[b.my_part_id]
-    for node in replicas:
+    app.logger.info('REPLICAS.....' + str(replicas))
+    allNodes = b.part_dic[b.my_part_id] + b.world_proxy.keys()
+    for node in allNodes:
         # check world proxy and dic
-        app.logger.info('I AM CALLING GET PART DIC ON' + str(node))
-        response = requests.get('http://'+node+'/getPartDic')
-        res = response.json()
-        their_part_dic = json.loads(res['part_dic'])
-        if cmp(b.part_dic, their_part_dic) != 0:
-            syncDemote()
-            reDistributeKeys()
+        if node != b.my_IP:
+            app.logger.info('I AM CALLING GET PART DIC ON' + str(node))
+            response = requests.get('http://'+node+'/getPartDic')
+            res = response.json()
+            their_part_dic = json.loads(res['part_dic'])
+            if cmp(b.part_dic, their_part_dic) != 0:
+                syncDemote()
+                reDistributeKeys()
 
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -248,6 +250,7 @@ def worldSync():
                     app.logger.info('PART DIC.....' + str(b.part_dic))
                     app.logger.info('ID.....' + str(b.my_part_id))
                     replicas = b.part_dic[b.my_part_id]
+                    app.logger.info('REPLICAS.....' + str(replicas))
                     for node in replicas:
                         # check world proxy and dic
                         app.logger.info('I AM CALLING GET PART DIC ON' + str(node))
@@ -324,6 +327,7 @@ def demoteAllNodes():
         })
     b.world_proxy = temp_world_proxy
     b.part_dic = new_part_dic
+    b.my_part_id = "0"
 
 
 ##########################################
@@ -333,8 +337,8 @@ def syncDemote():
     previousWorldProx = b.world_proxy
     previousDic = b.part_dic
     for index in b.part_dic.keys():
-        replicas = b.part_dic[index]
-        for node in replicas:
+        allNodes = b.part_dic[index] + b.world_proxy.keys()
+        for node in allNodes:
             # check world proxy and dic
             response = requests.get('http://'+node+'/getPartDic')
             res = response.json()
@@ -891,7 +895,7 @@ class UpdateView(Resource):
                             requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
                         except requests.exceptions.ConnectionError:
                             pass
-                time.sleep(10)
+                syncDemote()
                 return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
             else:
                 return addSameNode()
@@ -930,7 +934,7 @@ class UpdateView(Resource):
                             requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                         except requests.exceptions.ConnectionError:
                             pass
-                time.sleep(10)
+                syncDemote()
                 return removeNodeSuccess()
 
 ############################################
