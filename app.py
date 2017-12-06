@@ -718,6 +718,7 @@ class UpdateView(Resource):
                                 break
 
                 if(partFound == 1):
+                    # local removal
                     if(forward == 0):
                         b.part_dic[b.my_part_id].remove(add_node_ip_port)
                         for node in getPartitionView():
@@ -959,7 +960,7 @@ class GetPartitionMembers(Resource):
         except KeyError:
             return cusError('partition dictionary does not have key '+part_id,404)
 
-        return jsonify({"result":"success","partition_members":id_list[0]})
+        return jsonify({"result":"success","partition_members":id_list})
 
 #########################################################################################
 # Sync the Partition Dictionaries between partitions. Take in part_clock and part_dic
