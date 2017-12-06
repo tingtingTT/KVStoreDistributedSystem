@@ -8,6 +8,7 @@ import requests
 import random
 import threading
 import logging
+import copy
 from logging.handlers import RotatingFileHandler
 
 ############################################
@@ -88,7 +89,6 @@ def initVIEW():
             part_id = str(i/b.K)
             if b.VIEW_list[i] == b.my_IP:
                 b.my_part_id = part_id
-
             update(b.VIEW_list[i], part_id)
 
         if numProx > 0:
@@ -165,33 +165,36 @@ def worldSync():
                     'part_clock': b.part_clock,
                     'part_dic': json.dumps(b.part_dic)
                     })
-            else:
-                # my partition no longer hold, change my part_dic
-                # No proxies to replace replica, so demote everyone
-                # let the left over proxies point to nect partition
-                rehomeProxies = getReplicaArr()
-                for node in rehomeProxies:
-                    demoteNode(node)
-                del b.part_dic[b.my_part_id]
-                b.part_dic = renewPartDic()
-                # redistribute my keys
-                reDistributeKeys()
-                b.part_clock += 1
-                # rehome nodes to partID at 0.
-                for node in rehomeProxies:
-                    b.world_proxy[node] = "0"
+        else:
+            app.logger.info('I AM ABOUT TO DEMOTE EVERYONE')
+            # my partition no longer hold, change my part_dic
+            # No proxies to replace replica, so demote everyone
+            new_part_dic = {}
+            new_world_proxy = {}
+            proxy_node = getReplicaArr()
+            temp_part_dic = copy.deepcopy(b.part_dic)
+            app.logger.info('b DIC'+str(b.part_dic))
+            del temp_part_dic[b.my_part_id]
+            app.logger.info('b DIC AFTER '+str(b.part_dic))
+            new_part_dic = renewPartDic(temp_part_dic)
+            temp_world_proxy = b.world_proxy
+            for node in proxy_node:
+                temp_world_proxy[node] = "0"
+            b.part_clock += 1
 
-                # give my stuff to the next one in the part_dic
-                for partID in b.part_dic.keys():
-                    replicas = b.part_dic[partID]
-                    requests.put('http://'+replicas[0]+'/syncPartDic', data={
-                    'part_clock': b.part_clock,
-                    'part_dic': json.dumps(b.part_dic)
-                    })
-                requests.put('http://'+b.part_dic["0"][0]+'/addToWorldProxy', data={
-                'proxy_array': ','.join(rehomeProxies),
-                'part_clock': b.part_clock
+            # give my stuff to the next one in the part_dic
+
+            for partID in new_part_dic.keys():
+                app.logger.info('DICTIONARY'+str(b.part_dic))
+                replicas = b.part_dic[partID]
+                requests.put('http://'+replicas[0]+'/syncPartDicProxy', data={
+                'part_clock': b.part_clock,
+                'part_dic': json.dumps(new_part_dic),
+                'world_proxy': json.dumps(temp_world_proxy)
                 })
+            b.world_proxy = temp_world_proxy
+            b.part_dic = new_part_dic
+            reDistributeKeys()
     #####################################################################
         # Sync everything in our partition. promote or demote as Necessary
     #####################################################################
@@ -367,7 +370,7 @@ def isProxy():
 ######################################
 def getReplicaArr():
     if b.my_part_id != "-1":
-        app.logger.info('MY REPLICAS: '+ str(b.part_dic[b.my_part_id]))
+        # app.logger.info('MY REPLICAS: '+ str(b.part_dic[b.my_part_id]))
         if len(b.part_dic[b.my_part_id]) > 0:
             return b.part_dic[b.my_part_id]
     else:
@@ -599,12 +602,14 @@ class BasicGetPut(Resource):
 ####################################################################
 # renew part_dic when some partition no longer holds
 ##############################################################
-def renewPartDic():
+def renewPartDic(temp_part_dic):
     i = 0
-    for part_index in b.part_dic.keys():
-        replica_array = b.part_dic[part_index]
-        new_part_dic[i] = replica_array
+    new_part_dic = {}
+    for part_index in temp_part_dic.keys():
+        replica_array = temp_part_dic[part_index]
+        new_part_dic[str(i)] = replica_array
         i += 1
+    app.logger.info('NEW DICTIONARY'+str(new_part_dic))
     return new_part_dic
 
 ############################################
@@ -1046,6 +1051,44 @@ class SyncPartDic(Resource):
 
         return jsonify({'part_dic':json.dumps(b.part_dic)})
 
+
+class SyncPartDicProxy(Resource):
+    def put(self):
+        data = request.form.to_dict()
+        their_part_clock = int(data['part_clock'])
+        their_part_dic = json.loads(data['part_dic'])
+        their_world_proxy = json.loads(data['world_proxy'])
+        app.logger.info('I AM IN SyncPartDic')
+        app.logger.info('THEIR DICTIONARY'+str(their_part_dic))
+        app.logger.info('THEIR CLOCK'+str(their_part_clock))
+        app.logger.info('MY CLOCK'+str(b.part_clock))
+
+        # if b.part_clock < their_part_clock:
+        b.part_clock += 1
+        b.part_dic = their_part_dic
+        b.world_proxy = their_world_proxy
+        for part_id in b.part_dic.keys():
+            if b.my_IP in b.part_dic[part_id]:
+                b.my_part_id = part_id
+
+        app.logger.info('I AM BEFORE FOR LOOP...')
+        for replica in getReplicaArr():
+            app.logger.info('I JUST GOT TO FOR LOOP...')
+            if replica != b.my_IP:
+                app.logger.info('PART ID PASSING...'+str(b.my_part_id))
+                app.logger.info('PART DIC PASSING...'+str(b.part_dic))
+                app.logger.info('WORLD PROXY PASSING...'+str(b.world_proxy))
+                app.logger.info('CLOCK PASSING...'+str(b.part_clock))
+                requests.put("http://"+replica+"/changeView", data={
+                'part_id': b.my_part_id,
+                'part_dic':json.dumps(b.part_dic),
+                'node_ID_dic': json.dumps(b.node_ID_dic),
+                'part_clock': b.part_clock,
+                'world_proxy': json.dumps(b.world_proxy)})
+
+        return jsonify({'part_dic':json.dumps(b.part_dic)})
+
+
 ####################################################
 # all messaging functions
 ##############################################
@@ -1242,6 +1285,9 @@ api.add_resource(SetPartID, '/setPartID')
 api.add_resource(ResetKv, '/resetKv')
 api.add_resource(DeleteProxy, '/deleteProxy')
 api.add_resource(AddToWorldProxy, '/addToWorldProxy')
+api.add_resource(SyncPartDicProxy, '/syncPartDicProxy')
+
+
 
 
 if __name__ == '__main__':
