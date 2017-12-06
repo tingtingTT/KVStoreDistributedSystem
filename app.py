@@ -643,46 +643,54 @@ class UpdateView(Resource):
         type = request.args.get('type','')
         if type == None:
             return cusError('No type was specificed',404)
-
         data = request.form.to_dict()
-
         try:
             add_node_ip_port = data['ip_port']
         except KeyError:
             return cusError('ip_port key not provided',404)
-
         if add_node_ip_port == '':
             return cusError('empty ip_port',404)
 
         if type == 'add':
+            # check if the node you're trying to add is alive in the world
+            for partNum in b.part_dic:
+                listOfReps = b.part_dic[partNum]
+                for node in listOfReps:
+                    if node == add_node_ip_port:
+                        return addSameNode()
+            # exit loop if node is not in any partition
+
+            # Is node in world_proxy?
+            for prox in b.world_proxy:
+                if prox == add_node_ip_port:
+                    return addSameNode()
+            # exit loop if node is not a proxy neither
+
             # automatically add node as proxy
+            update(add_node_ip_port, b.my_part_id)
+            # give the brand new node its attributes using current node's data
+            requests.put('http://'+ add_node_ip_port +'/update_datas',data={
+            'part_id':b.my_part_id,
+            'world_proxy':json.dumps(b.world_proxy),
+            'part_dic':json.dumps(b.part_dic),
+            'part_clock': b.part_clock,
+            'kv_store':'{}',
+            'node_ID_dic':json.dumps(b.node_ID_dic),
+            'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
+            })
+            # not already added
+            # tell all nodes in view, add the new node
 
-            if add_node_ip_port not in getPartitionView():
-                update(add_node_ip_port, b.my_part_id)
-                # give the brand new node its attributes using current node's data
-                requests.put('http://'+ add_node_ip_port +'/update_datas',data={
-                'part_id':b.my_part_id,
-                'world_proxy':json.dumps(b.world_proxy),
-                'part_dic':json.dumps(b.part_dic),
-                'part_clock': b.part_clock,
-                'kv_store':'{}',
-                'node_ID_dic':json.dumps(b.node_ID_dic),
-                'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
-                })
-                # not already added
-                # tell all nodes in view, add the new node
+            for node in getPartitionView():
+                if node != add_node_ip_port and node != b.my_IP:
+                    try:
+                        requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
+                    except requests.exceptions.ConnectionError:
+                        pass
+            time.sleep(2)
+            return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
 
-                for node in getPartitionView():
-                    if node != add_node_ip_port and node != b.my_IP:
-                        try:
-                            requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
-                        except requests.exceptions.ConnectionError:
-                            pass
 
-                return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
-            else:
-                time.sleep(1)
-                return addSameNode()
         # remove a node
         elif type == 'remove':
             if(add_node_ip_port != b.my_IP):
@@ -718,7 +726,7 @@ class UpdateView(Resource):
                                     requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                                 except requests.exceptions.ConnectionError:
                                     pass
-                        time.sleep(1)
+                        time.sleep(2)
                         return removeNodeSuccess()
 
                     #forward node removal to the partition it belongs to
@@ -740,7 +748,7 @@ class UpdateView(Resource):
                                     requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                                 except requests.exceptions.ConnectionError:
                                     pass
-                        time.sleep(1)
+                        time.sleep(2)
                         return removeNodeSuccess()
 
                     else:
@@ -752,40 +760,9 @@ class UpdateView(Resource):
 
                         return cusError('Forwarding was not successful',404)
                 else:
-                    return cusError('You fucked up hard',404)
+                    return jsonify({'Node not found part dic':b.part_dic,'world prox':b.world_proxy,})#cusError('You fucked up hard',404)
             else:
                 return cusError('I cannot remove myself',404)
-            # if(add_node_ip_port != b.my_IP):
-            #     found = 0
-            #     for l in b.part_dic.values():
-            #         if (add_node_ip_port in l):
-            #             found = 1
-            #     if(found == 1 or add_node_ip_port in b.world_proxy):
-            #         IP = add_node_ip_port.split(':')[0]
-            #         up = os.system("ping -c 1 "+IP+" -W 1")
-            #         if(up == 0):
-            #             if(found == 1):
-            #                 for key in b.part_dic:
-            #                     if(add_node_ip_port in b.part_dic[key]):
-            #                         b.part_dic[key].remove(add_node_ip_port)
-            #
-            #             else:
-            #                 del b.world_proxy[add_node_ip_port]
-            #                 return cusError('node removed from proxy',200)
-            #
-            #             for node in getPartitionView():
-            #                 if node != add_node_ip_port and node != b.my_IP:
-            #                     try:
-            #                         requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
-            #                     except requests.exceptions.ConnectionError:
-            #                         pass
-            #             return removeNodeSuccess()
-            #         else:
-            #             return cusError('Cannot remove a dead node',404)
-            #     else:
-            #         return cusError('Cannot remove non existing node',404)
-            # else:
-            #     return cusError('I cannot remove myself',404)
 
 ############################################
 # class for updating datas

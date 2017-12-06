@@ -351,8 +351,8 @@ if __name__ == "__main__":
             # Test 1
             test_description = """ Test1:
             Node additions/deletions. A kvs consists of 2 partitions with 2 replicas each.
-            I add 3 new nodes. The number of partitions should become 4. Then I delete 2 nodes.
-            The number of partitions should become 3. """
+            I add 3 new nodes. The number of partitions should become 3. Then I delete 2 nodes.
+            The number of partitions should become 2. """
             print(test_description)
             print()
             print("Starting kvs ...")
