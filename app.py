@@ -850,18 +850,18 @@ class UpdateView(Resource):
 
         if type == 'add':
             # check if the node you're trying to add is alive in the world
-            for partNum in b.part_dic:
-                listOfReps = b.part_dic[partNum]
-                for node in listOfReps:
-                    if node == add_node_ip_port:
-                        return addSameNode()
-            # exit loop if node is not in any partition
-
-            # Is node in world_proxy?
-            for prox in b.world_proxy:
-                if prox == add_node_ip_port:
-                    return addSameNode()
-            # exit loop if node is not a proxy neither
+            # for partNum in b.part_dic:
+            #     listOfReps = b.part_dic[partNum]
+            #     for node in listOfReps:
+            #         if node == add_node_ip_port:
+            #             return addSameNode()
+            # # exit loop if node is not in any partition
+            #
+            # # Is node in world_proxy?
+            # for prox in b.world_proxy:
+            #     if prox == add_node_ip_port:
+            #         return addSameNode()
+            # # exit loop if node is not a proxy neither
 
             # automatically add node as proxy
             if add_node_ip_port not in getPartitionView():
@@ -911,20 +911,20 @@ class UpdateView(Resource):
                         else:
                             return removeNodeDoesNotExist()
             else:
-            if add_node_ip_port in getReplicaArr():
-                app.logger.info('IM DELETING FROM MY PART DIC')
-                b.part_dic[b.my_part_id].remove(add_node_ip_port)
-            elif add_node_ip_port in getProxyArr():
-                del b.world_proxy[add_node_ip_port]
+                if add_node_ip_port in getReplicaArr():
+                    app.logger.info('IM DELETING FROM MY PART DIC')
+                    b.part_dic[b.my_part_id].remove(add_node_ip_port)
+                elif add_node_ip_port in getProxyArr():
+                    del b.world_proxy[add_node_ip_port]
 
-            for node in getPartitionView():
-                if node != add_node_ip_port and node != b.my_IP:
-                    try:
-                        requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
-                    except requests.exceptions.ConnectionError:
-                        pass
-            syncDemote()
-            return removeNodeSuccess()
+                for node in getPartitionView():
+                    if node != add_node_ip_port and node != b.my_IP:
+                        try:
+                            requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
+                        except requests.exceptions.ConnectionError:
+                            pass
+                syncDemote()
+                return removeNodeSuccess()
 
             # if(add_node_ip_port != b.my_IP):
             #     # where is node and should I forward it or not
