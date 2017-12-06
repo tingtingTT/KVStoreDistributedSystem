@@ -657,13 +657,13 @@ class UpdateView(Resource):
                 listOfReps = b.part_dic[partNum]
                 for node in listOfReps:
                     if node == add_node_ip_port:
-                        addSameNode()
+                        return addSameNode()
             # exit loop if node is not in any partition
 
             # Is node in world_proxy?
             for prox in b.world_proxy:
                 if prox == add_node_ip_port:
-                    addSameNode()
+                    return addSameNode()
             # exit loop if node is not a proxy neither
 
             # automatically add node as proxy
@@ -687,7 +687,7 @@ class UpdateView(Resource):
                         requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
                     except requests.exceptions.ConnectionError:
                         pass
-
+            time.sleep(1)
             return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
 
 
