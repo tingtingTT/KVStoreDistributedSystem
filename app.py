@@ -946,12 +946,11 @@ class UpdateView(Resource):
                                     if data['result'] == "success":
                                         # response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
                                         # return make_response(jsonify(response.json()), response.status_code)
-                                        requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
-
-
-
-                        return removeNodeSuccess()
-
+                                        response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
+                                        resp = response.json()
+                                        result = data['result']
+                                        numPartitions = date['number_of_partitions']
+                                        return removeNodeSuccess(numPartitions)
 
 
                 else:
@@ -969,7 +968,7 @@ class UpdateView(Resource):
                             requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                         except requests.exceptions.ConnectionError:
                             pass
-                return removeNodeSuccess()
+                return removeNodeSuccess(len(b.part_dic))
                 # response =requests.get('http://'+b.my_IP+'/getNodeState')
                 # return make_response(jsonify(response.json()), response.status_code)
 
@@ -1330,7 +1329,7 @@ def addNodeSuccess(node_ID):
     return response
 
 # remove node success
-def removeNodeSuccess():
+def removeNodeSuccess(numPartitions):
     # syncWorldProx()
     # syncAll()
     # totalNodes = 0
@@ -1340,7 +1339,7 @@ def removeNodeSuccess():
     # totalNodes += len(b.world_proxy)
     # numPartitions = totalNodes/b.K
     time.sleep(10)
-    response = jsonify({'result': 'success', 'number_of_partitions': b.part_dic, 'world_prox': b.world_proxy})
+    response = jsonify({'result': 'success', 'number_of_partitions': numPartitions})
     response.status_code = 200
     return response
 
