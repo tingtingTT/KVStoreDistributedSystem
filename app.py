@@ -661,6 +661,9 @@ class BasicGetPut(Resource):
                         b.kv_store[key] = (value, my_time)
                         b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                         b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+                        for node in b.part_dic[b.my_part_id]:
+                            if(node != b.my_IP):
+                                requests.put('http://'+node+'/partition_view/' + key, data=request.form)                
                         time.sleep(.2)
                         return putNewKey(my_time)
                 elif not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
@@ -671,6 +674,9 @@ class BasicGetPut(Resource):
                 my_time = time.time()
                 b.kv_store[key] = (value, my_time)
                 b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+                for node in b.part_dic[b.my_part_id]:
+                    if(node != b.my_IP):
+                        requests.put('http://'+node+'/partition_view/' + key, data=request.form)
                 time.sleep(.2)
                 return putNewKey(my_time)
         # check who else has it
