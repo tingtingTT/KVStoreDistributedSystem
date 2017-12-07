@@ -687,7 +687,6 @@ class UpdateView(Resource):
                         requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
                     except requests.exceptions.ConnectionError:
                         pass
-            time.sleep(2)
             return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
 
 
@@ -727,7 +726,6 @@ class UpdateView(Resource):
                                     requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                                 except requests.exceptions.ConnectionError:
                                     pass
-                        time.sleep(2)
                         return removeNodeSuccess()
 
                     #forward node removal to the partition it belongs to
@@ -749,7 +747,6 @@ class UpdateView(Resource):
                                     requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                                 except requests.exceptions.ConnectionError:
                                     pass
-                        time.sleep(2)
                         return removeNodeSuccess()
 
                     else:
