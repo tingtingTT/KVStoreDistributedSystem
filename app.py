@@ -303,7 +303,7 @@ def worldSync():
         # Sync world_proxy arrays across clusters
         ##########################################
         syncAll()
-        partitionChange()
+        # partitionChange()
 
 ##################################################################
 # function to demote all notes if a partition replica number < K
@@ -323,7 +323,7 @@ def demoteAllNodes():
     temp_world_proxy = copy.deepcopy(b.world_proxy)
     for node in proxy_node:
         temp_world_proxy[node] = "0"
-
+#
 
 
     app.logger.info('Setting my dictionary to ' + str(new_part_dic))
@@ -454,7 +454,6 @@ def syncWorldProx():
 def partitionChange():
     if len(getReplicaArr())< b.K:
         #app.logger.info('I NEED TO CHANGE THE PARTITION DIC')
-        print('sup')
 
     if len(b.world_proxy.keys()) >= b.K:
         numNewPartition = len(b.world_proxy) / b.K
