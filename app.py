@@ -170,15 +170,15 @@ def worldSync():
 
 
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    app.logger.info('PART DIC.....' + str(b.part_dic))
-    app.logger.info('ID.....' + str(b.my_part_id))
+    #app.logger.info('PART DIC.....' + str(b.part_dic))
+    #app.logger.info('ID.....' + str(b.my_part_id))
     replicas = b.part_dic[b.my_part_id]
-    app.logger.info('REPLICAS.....' + str(replicas))
+    #app.logger.info('REPLICAS.....' + str(replicas))
     allNodes = b.part_dic[b.my_part_id] + b.world_proxy.keys()
     for node in allNodes:
         # check world proxy and dic
         if node != b.my_IP:
-            app.logger.info('I AM CALLING GET PART DIC ON' + str(node))
+            #app.logger.info('I AM CALLING GET PART DIC ON' + str(node))
             response = requests.get('http://'+node+'/getPartDic')
             res = response.json()
             their_part_dic = json.loads(res['part_dic'])
@@ -245,13 +245,13 @@ def worldSync():
 
 #??????????????????????????????????????????????????????????????????????????????????????
 # same thing to ensure part_dic
-                    app.logger.info('PART DIC.....' + str(b.part_dic))
-                    app.logger.info('ID.....' + str(b.my_part_id))
+                    #app.logger.info('PART DIC.....' + str(b.part_dic))
+                    #app.logger.info('ID.....' + str(b.my_part_id))
                     replicas = b.part_dic[b.my_part_id]
-                    app.logger.info('REPLICAS.....' + str(replicas))
+                    #app.logger.info('REPLICAS.....' + str(replicas))
                     for node in replicas:
                         # check world proxy and dic
-                        app.logger.info('I AM CALLING GET PART DIC ON' + str(node))
+                        #app.logger.info('I AM CALLING GET PART DIC ON' + str(node))
                         response = requests.get('http://'+node+'/getPartDic')
                         res = response.json()
                         their_part_dic = json.loads(res['part_dic'])
@@ -293,16 +293,16 @@ def worldSync():
 # function to demote all notes if a partition replica number < K
 ##################################################################
 def demoteAllNodes():
-    app.logger.info('I AM ABOUT TO DEMOTE EVERYONE')
+    #app.logger.info('I AM ABOUT TO DEMOTE EVERYONE')
     # my partition no longer hold, change my part_dic
     # No proxies to replace replica, so demote everyone
     new_part_dic = {}
     new_world_proxy = {}
     proxy_node = getReplicaArr()
     temp_part_dic = copy.deepcopy(b.part_dic)
-    app.logger.info('b DIC'+str(b.part_dic))
+    #app.logger.info('b DIC'+str(b.part_dic))
     del temp_part_dic[b.my_part_id]
-    app.logger.info('b DIC AFTER '+str(b.part_dic))
+    #app.logger.info('b DIC AFTER '+str(b.part_dic))
     new_part_dic = renewPartDic(temp_part_dic)
     temp_world_proxy = b.world_proxy
     for node in proxy_node:
@@ -310,13 +310,13 @@ def demoteAllNodes():
     b.part_clock += 1
 
     # give my stuff to the next one in the part_dic
-    app.logger.info('BEFORE CALLING SYNCPARTDIC: NEW PART DIC'+str(new_part_dic))
+    #app.logger.info('BEFORE CALLING SYNCPARTDIC: NEW PART DIC'+str(new_part_dic))
     for partID in new_part_dic.keys():
-        app.logger.info('DICTIONARY'+str(b.part_dic))
+        #app.logger.info('DICTIONARY'+str(b.part_dic))
         #???????????????????????????????????????????
         # what went wrong earlier
         replicas = new_part_dic[partID]
-        app.logger.info('I AM CALLING SYNCPARTDIC ON' + str(replicas[0]))
+        #app.logger.info('I AM CALLING SYNCPARTDIC ON' + str(replicas[0]))
         requests.put('http://'+replicas[0]+'/syncPartDicProxy', data={
         'part_clock': b.part_clock,
         'part_dic': json.dumps(new_part_dic),
@@ -406,7 +406,8 @@ def syncWorldProx():
 #####################################################
 def partitionChange():
     if len(getReplicaArr())< b.K:
-        app.logger.info('I NEED TO CHANGE THE PARTITION DIC')
+        #app.logger.info('I NEED TO CHANGE THE PARTITION DIC')
+        print('sup')
 
     if len(b.world_proxy.keys()) >= b.K:
         numNewPartition = len(b.world_proxy) / b.K
@@ -733,7 +734,7 @@ def renewPartDic(temp_part_dic):
         replica_array = temp_part_dic[part_index]
         new_part_dic[str(i)] = replica_array
         i += 1
-    app.logger.info('NEW DICTIONARY'+str(new_part_dic))
+    #app.logger.info('NEW DICTIONARY'+str(new_part_dic))
     return new_part_dic
 
 ############################################
@@ -1287,7 +1288,7 @@ class GetPartitionMembers(Resource):
 #############################################################################
 class SyncPartDic(Resource):
     def put(self):
-        app.logger.info('REPLICA ARR AT START: ' + str(getReplicaArr()))
+        #app.logger.info('REPLICA ARR AT START: ' + str(getReplicaArr()))
         data = request.form.to_dict()
         their_part_clock = int(data['part_clock'])
         their_part_dic = json.loads(data['part_dic'])
@@ -1314,10 +1315,10 @@ class SyncPartDicProxy(Resource):
         their_part_clock = int(data['part_clock'])
         their_part_dic = json.loads(data['part_dic'])
         their_world_proxy = json.loads(data['world_proxy'])
-        app.logger.info('I AM IN SyncPartDic')
-        app.logger.info('THEIR DICTIONARY'+str(their_part_dic))
-        app.logger.info('THEIR CLOCK'+str(their_part_clock))
-        app.logger.info('MY CLOCK'+str(b.part_clock))
+        #app.logger.info('I AM IN SyncPartDic')
+        #app.logger.info('THEIR DICTIONARY'+str(their_part_dic))
+        #app.logger.info('THEIR CLOCK'+str(their_part_clock))
+        #app.logger.info('MY CLOCK'+str(b.part_clock))
 
         # if b.part_clock < their_part_clock:
         if b.part_clock < their_part_clock:
@@ -1327,17 +1328,17 @@ class SyncPartDicProxy(Resource):
             for part_id in b.part_dic.keys():
                 if b.my_IP in b.part_dic[part_id]:
                     b.my_part_id = part_id
-                    app.logger.info('MY IP'+str(b.my_IP)+"...MY ID"+str(b.my_part_id))
+                    #app.logger.info('MY IP'+str(b.my_IP)+"...MY ID"+str(b.my_part_id))
 
-            app.logger.info('I AM BEFORE FOR LOOP...')
+            #app.logger.info('I AM BEFORE FOR LOOP...')
             for node in getPartitionView():
-                app.logger.info('I JUST GOT TO FOR LOOP...')
+                #app.logger.info('I JUST GOT TO FOR LOOP...')
                 if node != b.my_IP:
-                    app.logger.info('PART ID PASSING...'+str(b.my_part_id))
-                    app.logger.info('PART DIC PASSING...'+str(b.part_dic))
-                    app.logger.info('WORLD PROXY PASSING...'+str(b.world_proxy))
-                    app.logger.info('CLOCK PASSING...'+str(b.part_clock))
-                    app.logger.info('I AM CALLING CHANGEVIEW AT '+str(getReplicaArr()))
+                    #app.logger.info('PART ID PASSING...'+str(b.my_part_id))
+                    #app.logger.info('PART DIC PASSING...'+str(b.part_dic))
+                    #app.logger.info('WORLD PROXY PASSING...'+str(b.world_proxy))
+                    #app.logger.info('CLOCK PASSING...'+str(b.part_clock))
+                    #app.logger.info('I AM CALLING CHANGEVIEW AT '+str(getReplicaArr()))
                     requests.put("http://"+node+"/changeView", data={
                     'part_id': b.my_part_id,
                     'part_dic':json.dumps(b.part_dic),
