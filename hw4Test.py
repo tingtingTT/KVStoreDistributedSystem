@@ -362,6 +362,7 @@ if __name__ == "__main__":
             n1 = start_new_node(container_name, K=2, net=network, sudo=sudo)
             n2 = start_new_node(container_name, K=2, net=network, sudo=sudo)
             n3 = start_new_node(container_name, K=2, net=network, sudo=sudo)
+            time.sleep(3)
 
             resp_dict = add_node_to_kvs(hostname, nodes[0], n1)
             number_of_partitions = resp_dict.get('number_of_partitions')
@@ -369,7 +370,7 @@ if __name__ == "__main__":
                 print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 2")
-            time.sleep(2)
+            time.sleep(3)
 
             resp_dict = add_node_to_kvs(hostname, nodes[2], n2)
             number_of_partitions = resp_dict.get('number_of_partitions')
@@ -377,7 +378,7 @@ if __name__ == "__main__":
                 print("ERROR: the number of partitions should be 3, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 3")
-            time.sleep(2)
+            time.sleep(3)
 
             resp_dict = add_node_to_kvs(hostname, n1, n3)
             number_of_partitions = resp_dict.get('number_of_partitions')
@@ -385,7 +386,7 @@ if __name__ == "__main__":
                 print("ERROR: the number of partitions should be 3, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 3")
-            time.sleep(2)
+            time.sleep(3)
 
             print("Deleting nodes ...")
             # deleted 1 node (7-1 = 6)
@@ -395,7 +396,7 @@ if __name__ == "__main__":
                 print("ERROR: the number of partitions should be 3, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 3")
-            time.sleep(2)
+            time.sleep(3)
             # deleted 2 nodes (7-2 = 5)
             resp_dict = delete_node_from_kvs(hostname, n3, nodes[2])
             number_of_partitions = resp_dict.get('number_of_partitions')
@@ -403,7 +404,7 @@ if __name__ == "__main__":
                 print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 2")
-            time.sleep(2)
+            time.sleep(3)
             # deleted 3 nodes (7-3 = 4)
             resp_dict = delete_node_from_kvs(hostname, n3, n2)
             number_of_partitions = resp_dict.get('number_of_partitions')
@@ -411,7 +412,7 @@ if __name__ == "__main__":
                 print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 2")
-            time.sleep(2)
+            time.sleep(3)
 
             print("Stopping the kvs")
         except Exception as e:
@@ -437,9 +438,9 @@ if __name__ == "__main__":
             n2 = start_new_node(container_name, K=2, net=network, sudo=sudo)
 
             resp_dict1 = add_node_to_kvs(hostname, nodes[0], n1)
-            time.sleep(2)
+            time.sleep(3)
             resp_dict2 = add_node_to_kvs(hostname, nodes[2], n2)
-            time.sleep(2)
+            time.sleep(3)
 
             if not (resp_dict1 is not None and resp_dict2 is not None and
                             resp_dict1['result'] == 'success' and resp_dict2['result'] == 'success'):

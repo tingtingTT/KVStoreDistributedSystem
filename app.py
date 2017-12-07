@@ -157,7 +157,6 @@ def worldSync():
             # Need to sync part dics now
             for partID in b.part_dic.keys():
                 if partID != b.my_part_id:
-                    replicas = b.part_dic[partID]
                     requests.put('http://'+replicas[0]+'/syncPartDic', data={
                     'part_clock': b.part_clock,
                     'part_dic': json.dumps(b.part_dic)
@@ -171,15 +170,18 @@ def worldSync():
     app.logger.info('PART DIC.....' + str(b.part_dic))
     app.logger.info('ID.....' + str(b.my_part_id))
     replicas = b.part_dic[b.my_part_id]
-    for node in replicas:
+    app.logger.info('REPLICAS.....' + str(replicas))
+    allNodes = b.part_dic[b.my_part_id] + b.world_proxy.keys()
+    for node in allNodes:
         # check world proxy and dic
-        app.logger.info('I AM CALLING GET PART DIC ON' + str(node))
-        response = requests.get('http://'+node+'/getPartDic')
-        res = response.json()
-        their_part_dic = json.loads(res['part_dic'])
-        if cmp(b.part_dic, their_part_dic) != 0:
-            syncDemote()
-            reDistributeKeys()
+        if node != b.my_IP:
+            app.logger.info('I AM CALLING GET PART DIC ON' + str(node))
+            response = requests.get('http://'+node+'/getPartDic')
+            res = response.json()
+            their_part_dic = json.loads(res['part_dic'])
+            if cmp(b.part_dic, their_part_dic) != 0:
+                syncDemote()
+                reDistributeKeys()
 
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -243,6 +245,7 @@ def worldSync():
                     app.logger.info('PART DIC.....' + str(b.part_dic))
                     app.logger.info('ID.....' + str(b.my_part_id))
                     replicas = b.part_dic[b.my_part_id]
+                    app.logger.info('REPLICAS.....' + str(replicas))
                     for node in replicas:
                         # check world proxy and dic
                         app.logger.info('I AM CALLING GET PART DIC ON' + str(node))
@@ -318,6 +321,7 @@ def demoteAllNodes():
         })
     b.world_proxy = temp_world_proxy
     b.part_dic = new_part_dic
+    b.my_part_id = "0"
 
 
 ##########################################
@@ -327,8 +331,8 @@ def syncDemote():
     previousWorldProx = b.world_proxy
     previousDic = b.part_dic
     for index in b.part_dic.keys():
-        replicas = b.part_dic[index]
-        for node in replicas:
+        allNodes = b.part_dic[index] + b.world_proxy.keys()
+        for node in allNodes:
             # check world proxy and dic
             response = requests.get('http://'+node+'/getPartDic')
             res = response.json()
@@ -340,7 +344,6 @@ def syncDemote():
                 previousWorldProx = their_world_proxy
                 previousDic = their_part_dic
             else:
-                time.sleep(1)
                 syncDemote()
 
 #################################
@@ -844,6 +847,72 @@ class UpdateView(Resource):
         if add_node_ip_port == '':
             return cusError('empty ip_port',404)
 
+        # if type == 'add':
+        #     # automatically add node as proxy
+        #     if add_node_ip_port not in getPartitionView():
+        #         update(add_node_ip_port, b.my_part_id)
+        #         # give the brand new node its attributes using current node's data
+        #         requests.put('http://'+ add_node_ip_port +'/update_datas',data={
+        #         'part_id':b.my_part_id,
+        #         'world_proxy':json.dumps(b.world_proxy),
+        #         'part_dic':json.dumps(b.part_dic),
+        #         'part_clock': b.part_clock,
+        #         'kv_store':'{}',
+        #         'node_ID_dic':json.dumps(b.node_ID_dic),
+        #         'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
+        #         })
+        #         # not already added
+        #         # tell all nodes in view, add the new node
+        #
+        #         for node in getPartitionView():
+        #             if node != add_node_ip_port and node != b.my_IP:
+        #                 try:
+        #                     requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
+        #                 except requests.exceptions.ConnectionError:
+        #                     pass
+        #         syncDemote()
+        #         return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
+        #     else:
+        #         return addSameNode()
+        # # remove a node
+        # elif type == 'remove':
+        #     # TODO
+        #     if add_node_ip_port not in (getReplicaArr() + getProxyArr()):
+        #         # check if any other partiton has it
+        #         # ?????????????????????????????????????????????????????????????????????????????????
+        #         for index in b.part_dic.keys():
+        #             if index != b.my_part_id:
+        #                 replicas = b.part_dic[index]
+        #                 response = requests.get('http://'+replicas[0]+'/kv-store/get_partition_members', data={'partition_id': index})
+        #                 data = response.json()
+        #                 members = data['partition_members'].split(',')
+        #                 app.logger.info('RESULT' + str(data['result']))
+        #                 app.logger.info('PARTITION MEMBER' + str(members))
+        #                 if data['result'] == "success":
+        #                     for member in members:
+        #                         if member != add_node_ip_port:
+        #                             response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
+        #                             return make_response(jsonify(response.json()), response.status_code)
+        #
+        #             else:
+        #                 return removeNodeDoesNotExist()
+        #     else:
+        #         if add_node_ip_port in getReplicaArr():
+        #             app.logger.info('IM DELETING FROM MY PART DIC')
+        #             b.part_dic[b.my_part_id].remove(add_node_ip_port)
+        #         elif add_node_ip_port in getProxyArr():
+        #             del b.world_proxy[add_node_ip_port]
+        #
+        #         for node in getPartitionView():
+        #             if node != add_node_ip_port and node != b.my_IP:
+        #                 try:
+        #                     requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
+        #                 except requests.exceptions.ConnectionError:
+        #                     pass
+        #         syncDemote()
+        #         return removeNodeSuccess()
+
+        #-----------------------------------------------
         if type == 'add':
             # check if the node you're trying to add is alive in the world
             for partNum in b.part_dic:
@@ -880,7 +949,7 @@ class UpdateView(Resource):
                         requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
                     except requests.exceptions.ConnectionError:
                         pass
-            time.sleep(2)
+            #syncDemote()
             return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
 
         # remove a node
@@ -919,7 +988,7 @@ class UpdateView(Resource):
                                     requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                                 except requests.exceptions.ConnectionError:
                                     pass
-                        time.sleep(2)
+                        #syncDemote()
                         return removeNodeSuccess()
 
                     #forward node removal to the partition it belongs to
@@ -941,7 +1010,7 @@ class UpdateView(Resource):
                                     requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                                 except requests.exceptions.ConnectionError:
                                     pass
-                        time.sleep(2)
+                        #syncDemote()
                         return removeNodeSuccess()
 
                     else:
