@@ -954,7 +954,7 @@ class UpdateView(Resource):
             #syncDemote()
             return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
 
-        remove a node
+        #remove a node
         elif type == 'remove':
             if(add_node_ip_port != b.my_IP):
                 # where is node and should I forward it or not
