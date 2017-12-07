@@ -335,7 +335,7 @@ def is_balanced_on_avg(counts, threshold=0.9):
 
 
 if __name__ == "__main__":
-    container_name = 'bbb'
+    container_name = 'ccc'
     hostname = 'localhost'
     network = 'mynet'
     sudo = 'sudo'
