@@ -497,6 +497,7 @@ class PartitionView(Resource):
         if keyCheck(key) == False:
             return invalidInput()
         else:
+            time.sleep(.3)
             if(key in b.kv_store):
                 found = 'True'
             else:
@@ -513,17 +514,18 @@ class PartitionView(Resource):
             sender_kv_store_vector_clock = data['causal_payload']
         except KeyError:
             return cusError('causal_payload key not provided',404)
-
         try:
             value = data['val']
         except KeyError:
             return cusError('val key not provided',404)
+
         if((key in b.kv_store) and (sender_kv_store_vector_clock == '')):
             return cusError('duplicated key, causal_payload cannot be empty',404)
         if sender_kv_store_vector_clock == '':
             my_time = time.time()
             b.kv_store[key] = (value, my_time)
             b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+            time.sleep(.2)
             return putNewKey(my_time)
 
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
@@ -532,6 +534,7 @@ class PartitionView(Resource):
             b.kv_store[key] = (value, my_time)
             b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
             b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+            time.sleep(.2)
             return putNewKey(my_time)
         if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
             return cusError('payloads are concurrent',404)
@@ -575,24 +578,26 @@ class BasicGetPut(Resource):
             sender_kv_store_vector_clock = data['causal_payload']
         except KeyError:
             return cusError('causal_payload key not provided',404)
-        # if sender_kv_store_vector_clock == '':
-        #     return cusError('empty causal_payload',404)
+
         if isProxy():
             the_partition_id = b.world_proxy[b.my_IP]
             my_replicas = getNodesToForwardTo(the_partition_id)
             for node in my_replicas:
                 try:
                     response = requests.get('http://'+ node + '/kv-store/' + key, data=request.form)
+                    time.sleep(2)
                     return make_response(jsonify(response.json()), response.status_code)
                 except:
                     pass
 
-        #sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+        if sender_kv_store_vector_clock != '':
+            sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+
         # if senders causal_payload is less than or equal to mine, I am as, or more up to date
         if (key not in b.kv_store):
-            for partnum in b.part_dic:
-                node = b.part_dic[partnum][0] # 1st node in that partition
-                if node != b.my_IP:
+            for partID in b.part_dic:
+                if(partID != b.my_part_id):
+                    node = b.part_dic[partID][0] # 1st node in that partition
                     r = requests.get('http://'+node+'/partition_view/'+key)
                     a = r.json()
                     if (a['key'] == 'True'):
@@ -600,16 +605,16 @@ class BasicGetPut(Resource):
                         return make_response(jsonify(r.json()), r.status_code)
             return cusError('Key does not exist',404)
 
-        if sender_kv_store_vector_clock == '':
+        if(sender_kv_store_vector_clock == ''):
             value = b.kv_store[key][0]
             my_time = b.kv_store[key][1]
+            time.sleep(3)
             return getSuccess(value, my_time)
-        else:
-            sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
 
         if checkLessEq(b.kv_store_vector_clock,sender_kv_store_vector_clock):
             value = b.kv_store[key][0]
             my_time = b.kv_store[key][1]
+            time.sleep(3)
             return getSuccess(value, my_time)
 
         elif not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
@@ -638,41 +643,38 @@ class BasicGetPut(Resource):
                     return make_response(jsonify(response.json()), response.status_code)
                 except:
                     pass
-
-        # partition --> 1st node --> key?
-        for partnum in b.part_dic:
-            node = b.part_dic[partnum][0] # 1st node in that partition
-            if node == b.my_IP:
-                if(key in b.kv_store):
-                    if(sender_kv_store_vector_clock == ''):
-                        return cusError('duplicated key, causal_payload cannot be empty',404)
-
-                    sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
-                    if checkLessEq(b.kv_store_vector_clock,sender_kv_store_vector_clock):
-                        my_time = time.time()
-                        b.kv_store[key] = (value, my_time)
-                        b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-                        b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
-                        return putNewKey(my_time)
-
-                    elif not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
-                        return cusError('payloads are concurrent',404)
-                    else:
-                        return cusError('Invalid causal_payload',404)
-
-            else: # if 1st node in partition is NOT me
-                app.logger.info(node)
-                app.logger.info(key)
-                r = requests.get('http://'+node+'/partition_view/'+key)
-                if(r.status_code == 404):
-                    return make_response(jsonify(r.json()), r.status_code)
+        # check if key exist
+        if(key in b.kv_store):
+            if(sender_kv_store_vector_clock != ''):
+                sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+                if checkLessEq(b.kv_store_vector_clock,sender_kv_store_vector_clock):
+                    my_time = time.time()
+                    b.kv_store[key] = (value, my_time)
+                    b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+                    b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+                    time.sleep(.2)
+                    return putNewKey(my_time)
+                elif not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
+                    return cusError('payloads are concurrent',404)
                 else:
+                    return cusError('old causal_payload',404)
+            else:
+                my_time = time.time()
+                b.kv_store[key] = (value, my_time)
+                b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+                time.sleep(.2)
+                return putNewKey(my_time)
+        # check who else has it
+        else:
+            for partID in b.part_dic:
+                if(partID != b.my_part_id):
+                    node = b.part_dic[partID][0] # 1st node in that partition
+                    r = requests.get('http://'+node+'/partition_view/'+key)
                     a = r.json()
                     if (a['key'] == 'True'):
-                        r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+                        r = requests.put('http://'+node+'/kv-store/' + key, data=request.form)
                         return make_response(jsonify(r.json()), r.status_code)
-
-        # key was never found in the system! Means new key! Add to random partiton!
+        # otherwise key does not exist, add new key
         random_part_id = random.randint(0,len(b.part_dic)-1)
         nodeID = random.randint(0, len(b.part_dic[str(random_part_id)])-1)
         node = b.part_dic[str(random_part_id)][nodeID]
@@ -682,6 +684,7 @@ class BasicGetPut(Resource):
                 my_time = time.time()
                 b.kv_store[key] = (value, my_time)
                 b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+                time.sleep(.2)
                 return putNewKey(my_time)
 
             sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
@@ -690,6 +693,7 @@ class BasicGetPut(Resource):
                 b.kv_store[key] = (value, my_time)
                 b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                 b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+                time.sleep(.2)
                 return putNewKey(my_time)
 
             elif not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
@@ -699,7 +703,72 @@ class BasicGetPut(Resource):
                 return cusError('Invalid causal_payload',404)
         else:
             r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+            time.sleep(.2)
             return make_response(jsonify(r.json()), r.status_code)
+
+
+        # # partition --> 1st node --> key?
+        # for partnum in b.part_dic:
+        #     node = b.part_dic[partnum][0] # 1st node in that partition
+        #     if node == b.my_IP:
+        #         if(key in b.kv_store):
+        #             if(sender_kv_store_vector_clock == ''):
+        #                 return cusError('duplicated key, causal_payload cannot be empty',404)
+        #
+        #             sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+        #             if checkLessEq(b.kv_store_vector_clock,sender_kv_store_vector_clock):
+        #                 my_time = time.time()
+        #                 b.kv_store[key] = (value, my_time)
+        #                 b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+        #                 b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+        #                 return putNewKey(my_time)
+        #
+        #             elif not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
+        #                 return cusError('payloads are concurrent',404)
+        #             else:
+        #                 return cusError('Invalid causal_payload',404)
+        #
+        #     else: # if 1st node in partition is NOT me
+        #         app.logger.info(node)
+        #         app.logger.info(key)
+        #         r = requests.get('http://'+node+'/partition_view/'+key)
+        #         if(r.status_code == 404):
+        #             return make_response(jsonify(r.json()), r.status_code)
+        #         else:
+        #             a = r.json()
+        #             if (a['key'] == 'True'):
+        #                 r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+        #                 return make_response(jsonify(r.json()), r.status_code)
+        #
+        # # key was never found in the system! Means new key! Add to random partiton!
+        # random_part_id = random.randint(0,len(b.part_dic)-1)
+        # nodeID = random.randint(0, len(b.part_dic[str(random_part_id)])-1)
+        # node = b.part_dic[str(random_part_id)][nodeID]
+        # if node == b.my_IP:
+        #     # if happened to be me!
+        #     if sender_kv_store_vector_clock == '':
+        #         my_time = time.time()
+        #         b.kv_store[key] = (value, my_time)
+        #         b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+        #         return putNewKey(my_time)
+        #
+        #     sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+        #     if checkLessEq(b.kv_store_vector_clock,sender_kv_store_vector_clock):
+        #         my_time = time.time()
+        #         b.kv_store[key] = (value, my_time)
+        #         b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+        #         b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+        #         return putNewKey(my_time)
+        #
+        #     elif not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
+        #         return cusError('payloads are concurrent',404)
+        #
+        #     else:
+        #         return cusError('Invalid causal_payload',404)
+        # else:
+        #     r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+        #     return make_response(jsonify(r.json()), r.status_code)
+
 
 ####################################################################
 # renew part_dic when some partition no longer holds
@@ -854,9 +923,7 @@ class UpdateView(Resource):
         if add_node_ip_port == '':
             return cusError('empty ip_port',404)
 
-        #---------------------ting-tings-----------------------------------------------------
         # if type == 'add':
-        #     # automatically add node as proxy
         #     if add_node_ip_port not in getPartitionView():
         #         update(add_node_ip_port, b.my_part_id)
         #         # give the brand new node its attributes using current node's data
@@ -902,8 +969,8 @@ class UpdateView(Resource):
         #                             response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
         #                             return make_response(jsonify(response.json()), response.status_code)
         #
-        #             else:
-        #                 return removeNodeDoesNotExist()
+        #         else:
+        #             return removeNodeDoesNotExist()
         #     else:
         #         if add_node_ip_port in getReplicaArr():
         #             app.logger.info('IM DELETING FROM MY PART DIC')
@@ -919,9 +986,7 @@ class UpdateView(Resource):
         #                     pass
         #         syncDemote()
         #         return removeNodeSuccess()
-        #-----------------ting-tings------------------------------
 
-        #-----------------------------------------------
         if type == 'add':
             # check if the node you're trying to add is alive in the world
             for partNum in b.part_dic:
@@ -958,7 +1023,6 @@ class UpdateView(Resource):
                         requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
                     except requests.exceptions.ConnectionError:
                         pass
-            #syncDemote()
             return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
 
         #remove a node
@@ -1024,7 +1088,8 @@ class UpdateView(Resource):
                     return make_response(jsonify({'Node not found part dic':add_node_ip_port,'part_dic':b.part_dic,'world prox':b.world_proxy,}),404)
             else:
                 return cusError('I cannot remove myself',404)
-        #----------------------------------------------------------------------------
+
+
 
 ############################################
 # class for updating datas
@@ -1051,6 +1116,7 @@ class GetWorldProx(Resource):
     def get(self):
         return jsonify({'world_proxy': json.dumps(b.world_proxy), 'part_clock': b.part_clock})
 
+
 class GetReplicaArr(Resource):
     def get(self):
         return jsonify({'replica_array':','.join(getReplicaArr())})
@@ -1062,7 +1128,6 @@ class DeleteProxy(Resource):
         del b.world_proxy[delete_proxy]
         return
 
-##############################################
 # class for reset the node if node is removed
 ################################################
 class ResetData(Resource):
