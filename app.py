@@ -847,6 +847,7 @@ class UpdateView(Resource):
         if add_node_ip_port == '':
             return cusError('empty ip_port',404)
 
+        #---------------------ting-tings-----------------------------------------------------
         # if type == 'add':
         #     # automatically add node as proxy
         #     if add_node_ip_port not in getPartitionView():
@@ -911,6 +912,7 @@ class UpdateView(Resource):
         #                     pass
         #         syncDemote()
         #         return removeNodeSuccess()
+        #-----------------ting-tings------------------------------
 
         #-----------------------------------------------
         if type == 'add':
@@ -952,7 +954,7 @@ class UpdateView(Resource):
             #syncDemote()
             return addNodeSuccess(b.node_ID_dic[add_node_ip_port])
 
-        # remove a node
+        remove a node
         elif type == 'remove':
             if(add_node_ip_port != b.my_IP):
                 # where is node and should I forward it or not
@@ -988,7 +990,6 @@ class UpdateView(Resource):
                                     requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                                 except requests.exceptions.ConnectionError:
                                     pass
-                        #syncDemote()
                         return removeNodeSuccess()
 
                     #forward node removal to the partition it belongs to
@@ -1010,7 +1011,6 @@ class UpdateView(Resource):
                                     requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
                                 except requests.exceptions.ConnectionError:
                                     pass
-                        #syncDemote()
                         return removeNodeSuccess()
 
                     else:
@@ -1022,9 +1022,10 @@ class UpdateView(Resource):
 
                         return cusError('Forwarding was not successful',404)
                 else:
-                    return make_response(jsonify({'Node not found part dic':b.part_dic,'world prox':b.world_proxy,}),404)
+                    return make_response(jsonify({'Node not found part dic':add_node_ip_port,'part_dic':b.part_dic,'world prox':b.world_proxy,}),404)
             else:
                 return cusError('I cannot remove myself',404)
+        #----------------------------------------------------------------------------
 
 ############################################
 # class for updating datas
