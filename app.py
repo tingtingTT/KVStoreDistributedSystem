@@ -1013,14 +1013,6 @@ class UpdateView(Resource):
                                     pass
                         return removeNodeSuccess()
 
-                    else:
-                        for node in b.part_dic[forward]: # nodes in partition ID
-                            if(node != add_node_ip_port):
-                                r = requests.put('http://'+node+'/kv-store/update_view?type=remove',data = {'ip_port': add_node_ip_port})
-                                if(r.status_code != 404 or r.status_code != '404'):
-                                    return make_response(jsonify(r.json()),r.status_code)
-
-                        return cusError('Forwarding was not successful',404)
                 else:
                     return make_response(jsonify({'Node not found part dic':add_node_ip_port,'part_dic':b.part_dic,'world prox':b.world_proxy,}),404)
             else:
