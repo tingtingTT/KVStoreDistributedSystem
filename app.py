@@ -113,7 +113,7 @@ def gossip(IP):
 #################################################################################
 def heartbeat():
     # gossip with a random IP in the replicas array
-    for node in ():
+    for node in getReplicaArr():
         if(node != b.my_IP):
             gossip(node)
     if b.my_IP in getReplicaArr():
