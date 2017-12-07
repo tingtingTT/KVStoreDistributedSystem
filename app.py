@@ -575,8 +575,8 @@ class BasicGetPut(Resource):
             sender_kv_store_vector_clock = data['causal_payload']
         except KeyError:
             return cusError('causal_payload key not provided',404)
-        if sender_kv_store_vector_clock == '':
-            return cusError('empty causal_payload',404)
+        # if sender_kv_store_vector_clock == '':
+        #     return cusError('empty causal_payload',404)
         if isProxy():
             the_partition_id = b.world_proxy[b.my_IP]
             my_replicas = getNodesToForwardTo(the_partition_id)
@@ -587,7 +587,7 @@ class BasicGetPut(Resource):
                 except:
                     pass
 
-        sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+        #sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
         # if senders causal_payload is less than or equal to mine, I am as, or more up to date
         if (key not in b.kv_store):
             for partnum in b.part_dic:
@@ -599,6 +599,13 @@ class BasicGetPut(Resource):
                         r = requests.get('http://'+node+'/kv-store/' + key, data=request.form)
                         return make_response(jsonify(r.json()), r.status_code)
             return cusError('Key does not exist',404)
+
+        if sender_kv_store_vector_clock == '':
+            value = b.kv_store[key][0]
+            my_time = b.kv_store[key][1]
+            return getSuccess(value, my_time)
+        else:
+            sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
 
         if checkLessEq(b.kv_store_vector_clock,sender_kv_store_vector_clock):
             value = b.kv_store[key][0]
