@@ -1392,7 +1392,7 @@ def addSameNode():
 # add node successful
 def addNodeSuccess(node_ID):
     response = jsonify({'result': 'success', 'number_of_partitions': len(b.part_dic), 'partition_id' : b.my_part_id})
-    time.sleep(5)
+    time.sleep(10)
     response.status_code = 200
     return response
 
