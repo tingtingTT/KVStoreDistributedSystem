@@ -122,7 +122,7 @@ def heartbeat():
     if b.my_IP in getReplicaArr():
         worldSync()
     #partitionChange()
-    time.sleep(0.050) #seconds
+    time.sleep(0.1) #seconds
 
 ###########################################################################################
 # function to check which node is up and down with ping, then promode and demote nodes
@@ -504,10 +504,9 @@ def noDuplicatePartitions(proxies):
     b.part_clock += 1
     return True
 
-
-############################################
+#################################################
 # re-distribute keys among partitions
-###############################################
+##########################################
 def reDistributeKeys():
     tempkv = b.kv_store
     b.kv_store = {}
@@ -518,11 +517,11 @@ def reDistributeKeys():
         randID = random.randint(0,len(b.part_dic)-1)
         requests.put('http://'+b.part_dic[randID][0]+'/writeKey', data={'key':key, 'val':tempkv[key][0], 'timestamp': tempkv[key][1]})
 
-
+#################################################
+# re-distribute keys among partitions
+############################################
 def isProxy():
     return (b.my_IP in getProxyArr())
-
-
 
 ######################################
 # returns proxies that point to the part_id passed in
@@ -536,8 +535,6 @@ def getThierProxies(part_id):
         return proxy_nodes
     else:
         return []
-
-
 
 ######################################
 # for retrieving the rep and prox arrs
@@ -611,7 +608,6 @@ class PartitionView(Resource):
         if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
             return cusError('payloads are concurrent',404)
 
-
 #########################################################
 # for proxies to easily get its array of reps
 ################################################
@@ -663,9 +659,6 @@ class BasicGetPut(Resource):
                 except:
                     pass
 
-        if sender_kv_store_vector_clock != '':
-            sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
-
         # if senders causal_payload is less than or equal to mine, I am as, or more up to date
         if (key not in b.kv_store):
             for partID in b.part_dic:
@@ -684,6 +677,7 @@ class BasicGetPut(Resource):
             time.sleep(3)
             return getSuccess(value, my_time)
 
+        sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
         if checkLessEq(b.kv_store_vector_clock,sender_kv_store_vector_clock):
             value = b.kv_store[key][0]
             my_time = b.kv_store[key][1]
@@ -708,7 +702,6 @@ class BasicGetPut(Resource):
             value = data['val']
         except KeyError:
             return cusError('val key not provided',404)
-
         if isProxy():
             for node in getReplicaArr():
                 try:
@@ -716,6 +709,7 @@ class BasicGetPut(Resource):
                     return make_response(jsonify(response.json()), response.status_code)
                 except:
                     pass
+
         # check if key exist
         if(key in b.kv_store):
             if(sender_kv_store_vector_clock != ''):
@@ -725,11 +719,11 @@ class BasicGetPut(Resource):
                         b.kv_store[key] = (value, my_time)
                         b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                         b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
-                        #EXTRA SHIT-------------------------------------------
-                        for node in b.part_dic[b.my_part_id]:
-                            if(node != b.my_IP):
-                                requests.put('http://'+node+'/partition_view/' + key, data=request.form)
-                        #EXTRA SHIT-------------------------------------------
+                        # #EXTRA SHIT-------------------------------------------
+                        # for node in b.part_dic[b.my_part_id]:
+                        #     if(node != b.my_IP):
+                        #         requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+                        # #EXTRA SHIT-------------------------------------------
                         time.sleep(.2)
                         return putNewKey(my_time)
                 elif not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
@@ -740,11 +734,11 @@ class BasicGetPut(Resource):
                 my_time = time.time()
                 b.kv_store[key] = (value, my_time)
                 b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-                #EXTRA SHIT-------------------------------------------
-                for node in b.part_dic[b.my_part_id]:
-                    if(node != b.my_IP):
-                        requests.put('http://'+node+'/partition_view/' + key, data=request.form)
-                #EXTRA SHIT-------------------------------------------
+                # #EXTRA SHIT-------------------------------------------
+                # for node in b.part_dic[b.my_part_id]:
+                #     if(node != b.my_IP):
+                #         requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+                # #EXTRA SHIT-------------------------------------------
                 time.sleep(.2)
                 return putNewKey(my_time)
         # check who else has it
@@ -768,11 +762,11 @@ class BasicGetPut(Resource):
                 my_time = time.time()
                 b.kv_store[key] = (value, my_time)
                 b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
-                #EXTRA SHIT-------------------------------------------
-                for node in b.part_dic[b.my_part_id]:
-                    if(node != b.my_IP):
-                        requests.put('http://'+node+'/partition_view/' + key, data=request.form)
-                #EXTRA SHIT-------------------------------------------
+                # #EXTRA SHIT-------------------------------------------
+                # for node in b.part_dic[b.my_part_id]:
+                #     if(node != b.my_IP):
+                #         requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+                # #EXTRA SHIT-------------------------------------------
                 time.sleep(.2)
                 return putNewKey(my_time)
 
@@ -782,11 +776,11 @@ class BasicGetPut(Resource):
                 b.kv_store[key] = (value, my_time)
                 b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
                 b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
-                #EXTRA SHIT-------------------------------------------
-                for node in b.part_dic[b.my_part_id]:
-                    if(node != b.my_IP):
-                        requests.put('http://'+node+'/partition_view/' + key, data=request.form)
-                #EXTRA SHIT-------------------------------------------
+                # #EXTRA SHIT-------------------------------------------
+                # for node in b.part_dic[b.my_part_id]:
+                #     if(node != b.my_IP):
+                #         requests.put('http://'+node+'/partition_view/' + key, data=request.form)
+                # #EXTRA SHIT-------------------------------------------
                 time.sleep(.2)
                 return putNewKey(my_time)
 
@@ -799,8 +793,6 @@ class BasicGetPut(Resource):
             r = requests.put('http://'+node+'/partition_view/' + key, data=request.form)
             time.sleep(.2)
             return make_response(jsonify(r.json()), r.status_code)
-
-
 
 ####################################################################
 # renew part_dic when some partition no longer holds
@@ -863,7 +855,6 @@ class ChangeView(Resource):
             b.part_dic = json.loads(data['part_dic'])
             b.node_ID_dic = json.loads(data['node_ID_dic'])
             b.world_proxy = json.loads(data['world_proxy'])
-
         return
 
 class SetPartID(Resource):
