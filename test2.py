@@ -343,8 +343,14 @@ if __name__ == "__main__":
     # TODO PLEASE NOTE THAT YOU CAN RUN INDIVIDUAL TESTS AS BELOW, IF YOU WOULD LIKE, INSTEAD OF ALL NINE.
     # for instance, the below line would run only tests 2 and 9.
     # tests_to_run = [2, 9]
+<<<<<<< HEAD
     tests_to_run = [1]
     # tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+=======
+    # tests_to_run = [1]
+    tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+>>>>>>> fixRemove
 
     if 1 in tests_to_run:
         """ TESTS FOR PARTITION ADJUSTMENTS """
@@ -395,14 +401,18 @@ if __name__ == "__main__":
             else:
                 print("OK, the number of partitions is 3")
             # deleted 2 nodes (7-2 = 5)
+            # time.sleep(5)
             resp_dict = delete_node_from_kvs(hostname, n3, nodes[2])
+            print(resp_dict)
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 2:
                 print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 2")
             # deleted 3 nodes (7-3 = 4)
+            # time.sleep(5)
             resp_dict = delete_node_from_kvs(hostname, n3, n2)
+            print(resp_dict)
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 2:
                 print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
@@ -412,7 +422,7 @@ if __name__ == "__main__":
         except Exception as e:
             print("Exception in test 1")
             print(e)
-        stop_all_nodes(sudo)
+        # stop_all_nodes(sudo)
 
     if 2 in tests_to_run:
         """ TESTS FOR STABILITY AFTER PARTITION ADJUSTMENTS """
