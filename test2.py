@@ -443,12 +443,12 @@ if __name__ == "__main__":
             resp_dict1 = add_node_to_kvs(hostname, nodes[0], n1)
             time.sleep(2)
             ################################
-            print('GET NODE STATE:...'+str(nodes[0]))
-            get_node_state(nodes[0])
+            # print('GET NODE STATE:...'+str(nodes[0]))
+            get_node_state(nodes[0].access_port)
             resp_dict2 = add_node_to_kvs(hostname, nodes[2], n2)
             ################################
-            print('GET NODE STATE:...'+str(nodes[0]))
-            get_node_state(nodes[2])
+            # print('GET NODE STATE:...'+str(nodes[0]))
+            get_node_state(nodes[2].access_port)
             time.sleep(2)
 
             if not (resp_dict1 is not None and resp_dict2 is not None and
