@@ -335,10 +335,10 @@ def is_balanced_on_avg(counts, threshold=0.9):
 
 
 if __name__ == "__main__":
-    container_name = 'ccc'
-    hostname = 'localhost'
+    container_name = 'hw4'
+    hostname = '192.168.99.100'
     network = 'mynet'
-    sudo = 'sudo'
+    sudo = ' '
 
     # TODO PLEASE NOTE THAT YOU CAN RUN INDIVIDUAL TESTS AS BELOW, IF YOU WOULD LIKE, INSTEAD OF ALL NINE.
     # for instance, the below line would run only tests 2 and 9.
