@@ -205,18 +205,23 @@ def worldSync():
         app.logger.info('CALLING AVAILABILITY FROM ' + str(tryNode))
         if tryNode != b.my_IP:
             try:
-                response = requests.get('http://'+tryNode+"/availability")
+                response = requests.get('http://'+tryNode+"/availability", timeout=5)
                 res = response.json()
                 app.logger.info("res = " + str(json.dumps(res)))
                 app.logger.info("res keys = " + str(res.keys()))
                 break
             except requests.exceptions.ConnectionError:
                 pass
+            except requests.exceptions.Timeout:
+                pass
 
     for node in getPartitionView() + b.down_nodes:
         if node in res.keys():
             app.logger.info('PASSED')
             if res[node] != 0: #if the ping result is saying the node is down
+            ###########Tingting: I added this one here
+                if node not in down_nodes:
+                    b.down_nodes.append(node)
                 if node in getReplicaArr():
     #????????????????????????????????????????????????????????????????????????????????????????
                     b.part_dic[b.my_part_id].remove(node)
@@ -247,34 +252,36 @@ def worldSync():
                                 'part_clock': b.part_clock,
                                 'part_dic': json.dumps(b.part_dic)
                                 })
-                else:
+                    else:
     #????????????????????????????????????????????????????????
     # add to doen nodes forst then demote all nodes
-                    for node in getReplicaArr():
-                        if node not in down_nodes:
-                            b.down_nodes.append(node)
-                    demoteAllNodes()
+                    # Tingting: this is not right
+                    # for node in getReplicaArr():
+                    #     if node not in down_nodes:
+                    #         b.down_nodes.append(node)
+                        demoteAllNodes()
 
 
 #??????????????????????????????????????????????????????????????????????????????????????
 # same thing to ensure part_dic
-                app.logger.info('PART DIC.....' + str(b.part_dic))
-                app.logger.info('ID.....' + str(b.my_part_id))
-                replicas = b.part_dic[b.my_part_id]
-                for node in replicas:
-                    # check world proxy and dic
-                    app.logger.info('I AM CALLING GET PART DIC ON' + str(node))
-                    response = requests.get('http://'+node+'/getPartDic')
-                    res = response.json()
-                    their_part_dic = json.loads(res['part_dic'])
-                    if cmp(b.part_dic, their_part_dic) != 0:
-                        syncDemote()
-                        reDistributeKeys()
-
-                #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                # This means you're only responsible for removing nodes that forward to you.
-                if node in (getProxyArr()):
-                    del b.world_proxy[node]
+# Tingting: what is this for. no use 
+                # app.logger.info('PART DIC.....' + str(b.part_dic))
+                # app.logger.info('ID.....' + str(b.my_part_id))
+                # replicas = b.part_dic[b.my_part_id]
+                # for node in replicas:
+                #     # check world proxy and dic
+                #     app.logger.info('I AM CALLING GET PART DIC ON' + str(node))
+                #     response = requests.get('http://'+node+'/getPartDic')
+                #     res = response.json()
+                #     their_part_dic = json.loads(res['part_dic'])
+                #     if cmp(b.part_dic, their_part_dic) != 0:
+                #         syncDemote()
+                #         reDistributeKeys()
+                #
+                # #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                # # This means you're only responsible for removing nodes that forward to you.
+                # if node in (getProxyArr()):
+                #     del b.world_proxy[node]
         else:
             # Review this! will the # of reps ever be less than K in this case???
             if node not in getReplicaArr() and node not in getProxyArr():
@@ -359,7 +366,7 @@ def syncDemote():
     previousDic = b.part_dic
     for index in b.part_dic.keys():
         replicas = b.part_dic[index]
-        allNodes = replicas + getThierProxies(index)
+        allNodes = replicas + getTheirProxies(index)
         for node in allNodes:
             if node != b.my_IP:
                 # check world proxy and dic
@@ -491,7 +498,7 @@ def partitionChange():
 
             b.part_dic = temp_dic
 
-            #redistributeKeys
+            reDistributeKeys()
 ###############################################################
 # returns true if there are no duplicate partitions
 ###############################################################
@@ -526,7 +533,7 @@ def isProxy():
 ######################################
 # returns proxies that point to the part_id passed in
 ######################################
-def getThierProxies(part_id):
+def getTheirProxies(part_id):
     if len(b.world_proxy) > 0:
         proxy_nodes = []
         for node in b.world_proxy:
@@ -654,7 +661,7 @@ class BasicGetPut(Resource):
             for node in my_replicas:
                 try:
                     response = requests.get('http://'+ node + '/kv-store/' + key, data=request.form)
-                    time.sleep(2)
+                    time.sleep(.5)
                     return make_response(jsonify(response.json()), response.status_code)
                 except:
                     pass
@@ -674,14 +681,14 @@ class BasicGetPut(Resource):
         if(sender_kv_store_vector_clock == ''):
             value = b.kv_store[key][0]
             my_time = b.kv_store[key][1]
-            time.sleep(3)
+            time.sleep(.5)
             return getSuccess(value, my_time)
 
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
         if checkLessEq(b.kv_store_vector_clock,sender_kv_store_vector_clock):
             value = b.kv_store[key][0]
             my_time = b.kv_store[key][1]
-            time.sleep(3)
+            time.sleep(.5)
             return getSuccess(value, my_time)
 
         elif not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
@@ -999,9 +1006,7 @@ class UpdateView(Resource):
                 for index in b.part_dic.keys():
                     if index != b.my_part_id:
                         replicas = b.part_dic[index]
-                        response = requests.get('http://'+replicas[0]+'/kv-store/get_partition_members', data={'partition_id': index})
-                        data = response.json()
-                        members = data['partition_members'].split(',')
+                        members = replicas + getTheirProxies(index)
                         if add_node_ip_port in members:
                             for member in members:
                                 if member != add_node_ip_port:
@@ -1290,7 +1295,7 @@ class GetPartitionMembers(Resource):
 
 #???????????????????????????????????????????????????????????????????
 # changed return type
-        return jsonify({"result":"success","partition_members":','.join(id_list)})
+        return jsonify({"result":"success","partition_members":id_list})
 
 #########################################################################################
 # Sync the Partition Dictionaries between partitions. Take in part_clock and part_dic
@@ -1406,7 +1411,7 @@ def addSameNode():
     return response
 # add node successful
 def addNodeSuccess():
-    time.sleep(5)
+    time.sleep(8)
     response = jsonify({'result': 'success', 'number_of_partitions': len(b.part_dic), 'partition_id' : b.my_part_id})
     response.status_code = 200
     return response

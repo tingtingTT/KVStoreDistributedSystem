@@ -144,6 +144,11 @@ def generate_ip_port():
     port = str(8080 + NODE_COUNTER)
     return ip, port
 
+###################################################
+def get_node_state(ip_port):
+    response = req.get("http://" + hostname + ":" + ip_port +'/getNodeState')
+    print(response.json())
+####################################################
 
 def start_kvs(num_nodes, container_name, K=2, net='net', sudo='sudo'):
     ip_ports = []
@@ -275,6 +280,7 @@ def get_partition_members(node, partition_id):
     return d['partition_members']
 
 
+
 def get_all_partitions_ids(node):
     get_str = "http://" + hostname + ":" + node.access_port + "/kv-store/get_all_partition_ids"
     try:
@@ -335,14 +341,14 @@ def is_balanced_on_avg(counts, threshold=0.9):
 
 
 if __name__ == "__main__":
-    container_name = 'ccc'
-    hostname = 'localhost'
+    container_name = 'hw4'
+    hostname = '192.168.99.100'
     network = 'mynet'
-    sudo = 'sudo'
+    sudo = ''
 
     # TODO PLEASE NOTE THAT YOU CAN RUN INDIVIDUAL TESTS AS BELOW, IF YOU WOULD LIKE, INSTEAD OF ALL NINE.
     # for instance, the below line would run only tests 2 and 9.
-    tests_to_run = [1]
+    tests_to_run = [3]
     # tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
     if 1 in tests_to_run:
@@ -436,7 +442,13 @@ if __name__ == "__main__":
 
             resp_dict1 = add_node_to_kvs(hostname, nodes[0], n1)
             time.sleep(2)
+            ################################
+            print('GET NODE STATE:...'+str(nodes[0]))
+            get_node_state(nodes[0])
             resp_dict2 = add_node_to_kvs(hostname, nodes[2], n2)
+            ################################
+            print('GET NODE STATE:...'+str(nodes[0]))
+            get_node_state(nodes[2])
             time.sleep(2)
 
             if not (resp_dict1 is not None and resp_dict2 is not None and
@@ -514,9 +526,17 @@ if __name__ == "__main__":
             print("Ok, killing all the nodes in the partition ", partition_id_for_key)
             print("Verifying that we cannot access the key using other partitions")
             for node in part_nodes:
+                get_node_state(node.access_port)
                 stop_node(node, sudo=sudo)
-            other_nodes = [n for n in nodes if n not in part_nodes]
+                #################################
+                # sleep after kill
+                time.sleep(60)
+                ##################################
+                # get_node_state(node.access_port)
 
+            other_nodes = [n for n in nodes if n not in part_nodes]
+            ##################################################
+            get_node_state(other_nodes[0].access_port)
             get_str = "http://" + hostname + ":" + other_nodes[0].access_port + "/kv-store/" + keys[0]
             data = {'causal_payload': ''}
             if PRINT_HTTP_REQUESTS:
