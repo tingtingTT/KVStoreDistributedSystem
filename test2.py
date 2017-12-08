@@ -27,6 +27,14 @@ class Node:
         return self.ip
 
 
+
+###################################################
+def get_node_state(ip_port):
+    response = req.get("http://" + hostname + ":" + ip_port +'/getNodeState')
+    print(response.json())
+####################################################
+
+
 def generate_random_keys(n):
     alphabet = string.ascii_lowercase
     keys = []
@@ -338,12 +346,12 @@ if __name__ == "__main__":
     container_name = 'hw4'
     hostname = '192.168.99.100'
     network = 'mynet'
-    sudo = ' '
+    sudo = ''
 
     # TODO PLEASE NOTE THAT YOU CAN RUN INDIVIDUAL TESTS AS BELOW, IF YOU WOULD LIKE, INSTEAD OF ALL NINE.
     # for instance, the below line would run only tests 2 and 9.
-    tests_to_run = [1]
-    # tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    # tests_to_run = [2, 9]
+    tests_to_run = [2]
 
     if 1 in tests_to_run:
         """ TESTS FOR PARTITION ADJUSTMENTS """
@@ -369,14 +377,12 @@ if __name__ == "__main__":
                 print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 2")
-            # time.sleep(1)
             resp_dict = add_node_to_kvs(hostname, nodes[2], n2)
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 3:
                 print("ERROR: the number of partitions should be 3, but it is " + str(number_of_partitions))
             else:
                 print("OK, the number of partitions is 3")
-            # time.sleep(1)
             resp_dict = add_node_to_kvs(hostname, n1, n3)
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 3:
@@ -385,8 +391,8 @@ if __name__ == "__main__":
                 print("OK, the number of partitions is 3")
 
             print("Deleting nodes ...")
-            time.sleep(1)
             # deleted 1 node (7-1 = 6)
+            time.sleep(1)
             resp_dict = delete_node_from_kvs(hostname, n3, nodes[0])
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 3:
@@ -395,7 +401,6 @@ if __name__ == "__main__":
                 print("OK, the number of partitions is 3")
             # deleted 2 nodes (7-2 = 5)
             time.sleep(1)
-
             resp_dict = delete_node_from_kvs(hostname, n3, nodes[2])
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 2:
@@ -404,7 +409,6 @@ if __name__ == "__main__":
                 print("OK, the number of partitions is 2")
             # deleted 3 nodes (7-3 = 4)
             time.sleep(1)
-
             resp_dict = delete_node_from_kvs(hostname, n3, n2)
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 2:
@@ -436,7 +440,9 @@ if __name__ == "__main__":
 
             resp_dict1 = add_node_to_kvs(hostname, nodes[0], n1)
             time.sleep(2)
+            get_node_state(nodes[0].access_port)
             resp_dict2 = add_node_to_kvs(hostname, nodes[2], n2)
+            get_node_state(nodes[2].access_port)
             time.sleep(2)
 
             if not (resp_dict1 is not None and resp_dict2 is not None and

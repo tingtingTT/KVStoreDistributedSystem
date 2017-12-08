@@ -122,7 +122,7 @@ def heartbeat():
     if b.my_IP in getReplicaArr():
         worldSync()
     #partitionChange()
-    time.sleep(0.1) #seconds
+    time.sleep(0.05) #seconds
 
 ###########################################################################################
 # function to check which node is up and down with ping, then promode and demote nodes
@@ -397,7 +397,7 @@ def syncAll():
                 if cmp(previousWorldProx, their_world_prox) == 0:
                     previousWorldProx = their_world_prox
                 else:
-                    time.sleep(1)
+                    # time.sleep(1)
                     syncAll()
 
 #################################
@@ -413,7 +413,7 @@ def checkPartitionsAgree(checkNodes):
     for node in loopNodes:
         # if node != b.my_IP:
         # check dic
-        time.sleep(1)
+        # time.sleep(1)
         app.logger.info('calling getPartDic on = ' + str(node))
         response = requests.get('http://'+node+'/getPartDic')
         res = response.json()
@@ -653,8 +653,8 @@ class BasicGetPut(Resource):
             my_replicas = getNodesToForwardTo(the_partition_id)
             for node in my_replicas:
                 try:
+                    time.sleep(.5)
                     response = requests.get('http://'+ node + '/kv-store/' + key, data=request.form)
-                    time.sleep(2)
                     return make_response(jsonify(response.json()), response.status_code)
                 except:
                     pass
@@ -674,14 +674,14 @@ class BasicGetPut(Resource):
         if(sender_kv_store_vector_clock == ''):
             value = b.kv_store[key][0]
             my_time = b.kv_store[key][1]
-            time.sleep(3)
+            time.sleep(.5)
             return getSuccess(value, my_time)
 
         sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
         if checkLessEq(b.kv_store_vector_clock,sender_kv_store_vector_clock):
             value = b.kv_store[key][0]
             my_time = b.kv_store[key][1]
-            time.sleep(3)
+            time.sleep(.5)
             return getSuccess(value, my_time)
 
         elif not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
