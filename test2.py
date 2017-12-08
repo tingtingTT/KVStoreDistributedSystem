@@ -297,7 +297,8 @@ def get_all_partitions_ids(node):
 def find_node(nodes, ip_port):
     ip = ip_port.split(":")[0]
     for n in nodes:
-        if n.ip == ip:
+        # if n.ip == ip:
+
             return n
     return None
 
@@ -342,7 +343,7 @@ if __name__ == "__main__":
 
     # TODO PLEASE NOTE THAT YOU CAN RUN INDIVIDUAL TESTS AS BELOW, IF YOU WOULD LIKE, INSTEAD OF ALL NINE.
     # for instance, the below line would run only tests 2 and 9.
-    tests_to_run = [1]
+    tests_to_run = [4]
     # tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
     if 1 in tests_to_run:
@@ -497,6 +498,8 @@ if __name__ == "__main__":
             partition_id_for_key = get_partition_id_for_key(nodes[0], keys[0])
             print("Obtaining partition members for partition ", partition_id_for_key)
             members = get_partition_members(nodes[0], partition_id_for_key)
+            print('members = ' + str(members))
+            members = members.split(',')
             if len(members) != 2:
                 raise Exception("ERROR: the size of a partition %s should be 2, but it is %s" % (
                     partition_id_for_key, len(members)))
