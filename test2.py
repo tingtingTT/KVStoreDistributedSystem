@@ -351,7 +351,7 @@ if __name__ == "__main__":
     # TODO PLEASE NOTE THAT YOU CAN RUN INDIVIDUAL TESTS AS BELOW, IF YOU WOULD LIKE, INSTEAD OF ALL NINE.
     # for instance, the below line would run only tests 2 and 9.
     # tests_to_run = [2, 9]
-    tests_to_run = [1]
+    tests_to_run = [2]
 
     if 1 in tests_to_run:
         """ TESTS FOR PARTITION ADJUSTMENTS """
@@ -372,18 +372,18 @@ if __name__ == "__main__":
             n3 = start_new_node(container_name, K=2, net=network, sudo=sudo)
 
             resp_dict = add_node_to_kvs(hostname, nodes[0], n1)
-            get_node_state(nodes[0].access_port)
-            print("\n")
-            get_node_state(nodes[1].access_port)
-            print("\n")
-            get_node_state(nodes[2].access_port)
-            print("\n")
-            get_node_state(nodes[3].access_port)
-            print("\n")
-            get_node_state(n1.access_port)
-            print("\n")
-            get_node_state(n2.access_port)
-            print("\n")
+            # get_node_state(nodes[0].access_port)
+            # print("\n")
+            # get_node_state(nodes[1].access_port)
+            # print("\n")
+            # get_node_state(nodes[2].access_port)
+            # print("\n")
+            # get_node_state(nodes[3].access_port)
+            # print("\n")
+            # get_node_state(n1.access_port)
+            # print("\n")
+            # get_node_state(n2.access_port)
+            # print("\n")
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 2:
                 print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
@@ -402,18 +402,18 @@ if __name__ == "__main__":
             else:
                 print("OK, the number of partitions is 3")
 
-            get_node_state(nodes[0].access_port)
-            print("\n")
-            get_node_state(nodes[1].access_port)
-            print("\n")
-            get_node_state(nodes[2].access_port)
-            print("\n")
-            get_node_state(nodes[3].access_port)
-            print("\n")
-            get_node_state(n1.access_port)
-            print("\n")
-            get_node_state(n2.access_port)
-            print("\n")
+            # get_node_state(nodes[0].access_port)
+            # print("\n")
+            # get_node_state(nodes[1].access_port)
+            # print("\n")
+            # get_node_state(nodes[2].access_port)
+            # print("\n")
+            # get_node_state(nodes[3].access_port)
+            # print("\n")
+            # get_node_state(n1.access_port)
+            # print("\n")
+            # get_node_state(n2.access_port)
+            # print("\n")
 
             print("Deleting nodes ...")
             # deleted 1 node (7-1 = 6)
@@ -458,7 +458,7 @@ if __name__ == "__main__":
             print(test_description)
             nodes = start_kvs(4, container_name, K=2, net=network, sudo=sudo)
             keys = generate_random_keys(60)
-            add_keys(hostname, nodes, keys, 1)
+            # add_keys(hostname, nodes, keys, 1)
             get_node_state(nodes[0].access_port)
             print("\n")
             get_node_state(nodes[1].access_port)

@@ -180,7 +180,9 @@ def worldSync():
             app.logger.info('I KNOW I SHOULD DO SHIT')
             demoteAllNodes()
             syncDemote()
-            reDistributeKeys()
+            if b.my_IP == getReplicaArr()[0]:
+                app.logger.info('CALLING REDIST IN WORLD SYNC')
+                reDistributeKeys()
 
 
 
@@ -206,20 +208,16 @@ def worldSync():
     #####################################################################
     while(True):
         tryNode = getReplicaArr()[random.randint(0, len(getReplicaArr())-1)]
-        app.logger.info('CALLING AVAILABILITY FROM ' + str(tryNode))
         if tryNode != b.my_IP:
             try:
                 response = requests.get('http://'+tryNode+"/availability")
                 res = response.json()
-                app.logger.info("res = " + str(json.dumps(res)))
-                app.logger.info("res keys = " + str(res.keys()))
                 break
             except requests.exceptions.ConnectionError:
                 pass
 
     for node in getPartitionView() + b.down_nodes:
         if node in res.keys():
-            app.logger.info('PASSED')
             if res[node] != 0: #if the ping result is saying the node is down
                 if node in getReplicaArr():
     #????????????????????????????????????????????????????????????????????????????????????????
@@ -273,7 +271,8 @@ def worldSync():
                     their_part_dic = json.loads(res['part_dic'])
                     if cmp(b.part_dic, their_part_dic) != 0:
                         syncDemote()
-                        reDistributeKeys()
+                        # if b.my_IP == getReplicaArr()[0]:
+                        #     reDistributeKeys()
 
                 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 # This means you're only responsible for removing nodes that forward to you.
@@ -408,6 +407,7 @@ def syncAll():
 # check for partition agreement
 #################################
 def checkPartitionsAgree(checkNodes):
+    app.logger.info('my dic for agreement: ' + str(b.part_dic))
     app.logger.info('checkNodes = ' + str(checkNodes))
     app.logger.info('check we all agree')
     if len(checkNodes) == 0:
@@ -427,7 +427,6 @@ def checkPartitionsAgree(checkNodes):
             app.logger.info('after remove, checkNodes = ' + str(checkNodes))
             previousDic = their_part_dic
         else:
-            time.sleep(.5)
             checkPartitionsAgree(checkNodes)
 
 #########################################################
@@ -461,6 +460,7 @@ def syncWorldProx():
 # change partitions if newly added node > K
 #####################################################
 def partitionChange():
+    app.logger.info('I AM IN PARTITION CHANGE')
     if len(b.world_proxy.keys()) >= b.K:
         numNewPartition = len(b.world_proxy) / b.K
         numLeftProxy = len(b.world_proxy) % b.K
@@ -492,14 +492,20 @@ def partitionChange():
                     'part_dic':json.dumps(temp_dic),
                     'node_ID_dic': json.dumps(b.node_ID_dic),
                     'part_clock': b.part_clock,
-                    'world_proxy': '{}'})
+                    'world_proxy': json.dumps({})})
 
-            b.part_dic = temp_dic
+            b.part_dic = copy.deepcopy(temp_dic)
             # tingting: I added this
-            time.sleep(1)
+            # time.sleep(1)
+
+            app.logger.info('my dic for agreement: ' + str(b.part_dic))
+            allNodes = getAllNodes()
+            allNodes.remove(b.my_IP)
+            checkPartitionsAgree(allNodes)
+        if b.my_IP == getReplicaArr()[0]:
+            app.logger.info('CALLING REDIST IN PARTITION CHANGE')
             reDistributeKeys()
 
-            #redistributeKeys
 ###############################################################
 # returns true if there are no duplicate partitions
 ###############################################################
@@ -516,13 +522,16 @@ def noDuplicatePartitions(proxies):
 # re-distribute keys among partitions
 ##########################################
 def reDistributeKeys():
-    tempkv = b.kv_store
+    tempkv = copy.deepcopy(b.kv_store)
     b.kv_store = {}
+    b.kv_store_vector_clock = [0]*8
+    app.logger.info('tempkv = ' + str(tempkv))
     # reset kv for all replicas
     for rep in getReplicaArr():
-        requests.put('http://'+rep+'/resetKv')
-    for key in tempkv:
-        randID = random.randint(0,len(b.part_dic)-1)
+        if rep != b.my_IP:
+            requests.put('http://'+rep+'/resetKv')
+    for key in tempkv.keys():
+        randID = str(random.randint(0,len(b.part_dic)-1))
         requests.put('http://'+b.part_dic[randID][0]+'/writeKey', data={'key':key, 'val':tempkv[key][0], 'timestamp': tempkv[key][1]})
 
 #################################################
@@ -671,6 +680,7 @@ class WriteKey(Resource):
 class ResetKv(Resource):
     def put(self):
         b.kv_store = {}
+        b.kv_store_vector_clock = [0]*8
 
 ######################################
 # class for GET key and PUT key
@@ -958,8 +968,8 @@ class UpdateView(Resource):
                 'part_id':b.my_part_id,
                 'world_proxy':json.dumps(b.world_proxy),
                 'part_dic':json.dumps(b.part_dic),
-                'part_clock': b.part_clock,
-                'kv_store':'{}',
+                # 'part_clock': b.part_clock,
+                'kv_store':json.dumps({}),
                 'node_ID_dic':json.dumps(b.node_ID_dic),
                 'kv_store_vector_clock':'.'.join(map(str,b.kv_store_vector_clock)),
                 })
@@ -972,11 +982,8 @@ class UpdateView(Resource):
                             requests.put('http://'+node+'/addNode', data = {'ip_port': add_node_ip_port})
                         except requests.exceptions.ConnectionError:
                             pass
-                # time.sleep(5)
-                app.logger.info('my dic for agreement: ' + str(b.part_dic))
-                allNodes = getAllNodes()
-                allNodes.remove(b.my_IP)
-                checkPartitionsAgree(allNodes)
+
+                time.sleep(5)
                 return addNodeSuccess()
             else:
                 return addSameNode()
@@ -1002,9 +1009,11 @@ class UpdateView(Resource):
                                         response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
                                         resp = response.json()
                                         numPartitions = resp['number_of_partitions']
-                                        allNodes = getAllNodes()
-                                        allNodes.remove(b.my_IP)
-                                        checkPartitionsAgree(allNodes)
+                                        # allNodes = getAllNodes()
+                                        # allNodes.remove(b.my_IP)
+                                        # time.sleep(.5)
+                                        # checkPartitionsAgree(allNodes)
+                                        time.sleep(5)
                                         return removeNodeSuccess(numPartitions)
 
 
@@ -1018,12 +1027,6 @@ class UpdateView(Resource):
                     del b.world_proxy[add_node_ip_port]
 
 
-                for node in getPartitionView():
-                    if node != add_node_ip_port and node != b.my_IP:
-                        try:
-                            requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
-                        except requests.exceptions.ConnectionError:
-                            pass
                 if len(getReplicaArr())<b.K and len(b.world_proxy.keys())==0:
                     new_part_dic = {}
                     new_world_proxy = {}
@@ -1034,16 +1037,27 @@ class UpdateView(Resource):
                     app.logger.info('temp dic = ' + str(json.dumps(temp_part_dic)))
                     b.part_clock += 1
                     requests.put('http://'+add_node_ip_port+'/reset_data')
-                    allNodes = getAllNodes()
-                    allNodes.remove(b.my_IP)
-                    checkPartitionsAgree(allNodes)
+                    time.sleep(5)
+
+                    # allNodes = getAllNodes()
+                    # allNodes.remove(b.my_IP)
+                    # checkPartitionsAgree(allNodes)
                     return removeNodeSuccess(len(temp_part_dic))
                 else:
                     requests.put('http://'+add_node_ip_port+'/reset_data')
-                    allNodes = getAllNodes()
-                    allNodes.remove(b.my_IP)
-                    checkPartitionsAgree(allNodes)
+                    # allNodes = getAllNodes()
+                    # allNodes.remove(b.my_IP)
+                    # time.sleep(.5)
+                    # checkPartitionsAgree(allNodes)
+                    time.sleep(5)
                     return removeNodeSuccess(len(b.part_dic))
+
+                for node in getPartitionView():
+                    if node != add_node_ip_port and node != b.my_IP:
+                        try:
+                            requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
+                        except requests.exceptions.ConnectionError:
+                            pass
 
                 # response =requests.get('http://'+b.my_IP+'/getNodeState')
                 # return make_response(jsonify(response.json()), response.status_code)
@@ -1056,7 +1070,7 @@ class UpdateDatas(Resource):
     def put(self):
         data = request.form.to_dict()
         b.my_part_id = data['part_id']
-        b.part_clock = int(data['part_clock'])
+        # b.part_clock = int(data['part_clock'])
         b.kv_store = json.loads(data['kv_store'])
         b.node_ID_dic = json.loads(data['node_ID_dic'])
         b.part_dic = json.loads(data['part_dic'])
@@ -1118,6 +1132,11 @@ class GetKeyDetails(Resource):
         sender_timestamp = data['timestamp']
         sender_node_id = data['nodeID']
         sender_key_value = data['val']
+        if key not in b.kv_store.keys():
+            b.kv_store[key] = (sender_key_value, sender_timestamp)
+            merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+
+
         # return jsonify({'value': sender_kv_store_vector_clock, 'timestamp': b.kv_store_vector_clock})
         if checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock):
             # return our value
