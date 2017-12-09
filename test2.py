@@ -343,15 +343,15 @@ def is_balanced_on_avg(counts, threshold=0.9):
 
 
 if __name__ == "__main__":
-    container_name = 'hw4'
-    hostname = '192.168.99.100'
+    container_name = 'ccc'
+    hostname = 'localhost'
     network = 'mynet'
-    sudo = ''
+    sudo = 'sudo'
 
     # TODO PLEASE NOTE THAT YOU CAN RUN INDIVIDUAL TESTS AS BELOW, IF YOU WOULD LIKE, INSTEAD OF ALL NINE.
     # for instance, the below line would run only tests 2 and 9.
     # tests_to_run = [2, 9]
-    tests_to_run = [4]
+    tests_to_run = [1]
 
     if 1 in tests_to_run:
         """ TESTS FOR PARTITION ADJUSTMENTS """
@@ -417,7 +417,7 @@ if __name__ == "__main__":
 
             print("Deleting nodes ...")
             # deleted 1 node (7-1 = 6)
-            time.sleep(1)
+            # time.sleep(1)
             resp_dict = delete_node_from_kvs(hostname, n3, nodes[0])
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 3:
@@ -425,7 +425,7 @@ if __name__ == "__main__":
             else:
                 print("OK, the number of partitions is 3")
             # deleted 2 nodes (7-2 = 5)
-            time.sleep(1)
+            # time.sleep(1)
             resp_dict = delete_node_from_kvs(hostname, n3, nodes[2])
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 2:
@@ -433,7 +433,7 @@ if __name__ == "__main__":
             else:
                 print("OK, the number of partitions is 2")
             # deleted 3 nodes (7-3 = 4)
-            time.sleep(1)
+            # time.sleep(1)
             resp_dict = delete_node_from_kvs(hostname, n3, n2)
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 2:
@@ -516,7 +516,7 @@ if __name__ == "__main__":
             print("Sending a request to remove the faulty node from the key-value store.")
             resp_dict = delete_node_from_kvs(hostname, n1, nodes[0])
             time.sleep(5)
-            print(resp_dict)
+            print(json.dumps(resp_dict))
             if not (resp_dict is not None and resp_dict['result'] == 'success'):
                 raise Exception("Problems with deleting a node ")
             print("A node was successfully deleted. Verifying that no keys were dropped.")

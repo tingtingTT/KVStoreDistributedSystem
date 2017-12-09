@@ -306,8 +306,8 @@ def worldSync():
 
         # Sync world_proxy arrays across clusters
         ##########################################
-        syncAll()
-        partitionChange()
+    syncAll()
+    partitionChange()
 
 ##################################################################
 # function to demote all notes if a partition replica number < K
@@ -427,7 +427,8 @@ def checkPartitionsAgree(checkNodes):
             app.logger.info('after remove, checkNodes = ' + str(checkNodes))
             previousDic = their_part_dic
         else:
-            checkParitionsAgree(checkNodes)
+            time.sleep(.5)
+            checkPartitionsAgree(checkNodes)
 
 #########################################################
 # sync all proxy in world proxy among partitions
@@ -692,7 +693,6 @@ class BasicGetPut(Resource):
             return make_response(jsonify(response.json()), response.status_code)
 
         if key in b.kv_store.keys():
-            data = request.form.to_dict()
             if(sender_kv_store_vector_clock == ''):
                 value = b.kv_store[key][0]
                 my_time = b.kv_store[key][1]
@@ -738,12 +738,30 @@ class BasicGetPut(Resource):
         except KeyError:
             return cusError('val key not provided',404)
         if isProxy():
-            response = requests.put('http://'+ getReplicaArr() + '/kv-store/' + key, data=request.form)
+            response = requests.put('http://'+ getReplicaArr()[0] + '/kv-store/' + key, data=request.form)
             return make_response(jsonify(response.json()), response.status_code)
 
         if key in b.kv_store.keys():
-            r = requests.put('http://'+b.my_IP+'/putKey/' + key, data=request.form)
-            return make_response(jsonify(r.json()), r.status_code)
+            if sender_kv_store_vector_clock == '':
+                app.logger.info('sender clock empty...' + str(key))
+                my_time = time.time()
+                b.kv_store[key] = (value, my_time)
+                app.logger.info('my kv...' + str(b.kv_store))
+                b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+                app.logger.info('my clock...' + str(b.kv_store_vector_clock))
+                # time.sleep(.5)
+                return putNewKey(my_time)
+
+            sender_kv_store_vector_clock = map(int,data['causal_payload'].split('.'))
+            if (checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock)) or key not in b.kv_store:
+                my_time = time.time()
+                b.kv_store[key] = (value, my_time)
+                b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
+                b.kv_store_vector_clock = merge(b.kv_store_vector_clock, sender_kv_store_vector_clock)
+                # time.sleep(.5)
+                return putNewKey(my_time)
+            if not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
+                return cusError('payloads are concurrent',404)
 
         else:
             for partID in b.part_dic.keys():
@@ -756,8 +774,11 @@ class BasicGetPut(Resource):
                         return make_response(jsonify(r.json()), r.status_code)
 
         # otherwise key does not exist, add new key
-        random_part_id = random.randint(0,len(b.part_dic)-1)
-        node = b.part_dic[str(random_part_id)][0]
+        node = b.my_IP
+        while(node == b.my_IP):
+            random_part_id = random.randint(0,len(b.part_dic)-1)
+            rand_node = random.randint(0, b.K-1)
+            node = b.part_dic[str(random_part_id)][rand_node]
         r = requests.put('http://'+node+'/putKey/' + key, data=request.form)
         return make_response(jsonify(r.json()), r.status_code)
 
@@ -952,17 +973,17 @@ class UpdateView(Resource):
                         except requests.exceptions.ConnectionError:
                             pass
                 # time.sleep(5)
-                # app.logger.info('my dic for agreement: ' + str(b.part_dic))
-                # allNodes = getAllNodes()
-                # allNodes.remove(b.my_IP)
-                # checkPartitionsAgree(allNodes)
+                app.logger.info('my dic for agreement: ' + str(b.part_dic))
+                allNodes = getAllNodes()
+                allNodes.remove(b.my_IP)
+                checkPartitionsAgree(allNodes)
                 return addNodeSuccess()
             else:
                 return addSameNode()
         # remove a node
         elif type == 'remove':
             # TODO
-            if add_node_ip_port not in (getReplicaArr() + getProxyArr()):
+            if add_node_ip_port not in getPartitionView():
                 # check if any other partiton has it
                 # ?????????????????????????????????????????????????????????????????????????????????
                 for index in b.part_dic.keys():
@@ -981,9 +1002,9 @@ class UpdateView(Resource):
                                         response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
                                         resp = response.json()
                                         numPartitions = resp['number_of_partitions']
-                                        # allNodes = getAllNodes()
-                                        # allNodes.remove(b.my_IP)
-                                        # checkPartitionsAgree(allNodes)
+                                        allNodes = getAllNodes()
+                                        allNodes.remove(b.my_IP)
+                                        checkPartitionsAgree(allNodes)
                                         return removeNodeSuccess(numPartitions)
 
 
@@ -1013,11 +1034,15 @@ class UpdateView(Resource):
                     app.logger.info('temp dic = ' + str(json.dumps(temp_part_dic)))
                     b.part_clock += 1
                     requests.put('http://'+add_node_ip_port+'/reset_data')
-                    # checkPartitionsAgree()
+                    allNodes = getAllNodes()
+                    allNodes.remove(b.my_IP)
+                    checkPartitionsAgree(allNodes)
                     return removeNodeSuccess(len(temp_part_dic))
                 else:
                     requests.put('http://'+add_node_ip_port+'/reset_data')
-                    # checkPartitionsAgree()
+                    allNodes = getAllNodes()
+                    allNodes.remove(b.my_IP)
+                    checkPartitionsAgree(allNodes)
                     return removeNodeSuccess(len(b.part_dic))
 
                 # response =requests.get('http://'+b.my_IP+'/getNodeState')
