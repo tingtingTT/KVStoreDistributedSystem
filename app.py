@@ -126,7 +126,7 @@ def heartbeat():
     if b.my_IP in getReplicaArr():
         checkNodeStatus()
     syncAllProxies()
-    syncPartitions()
+    syncAllPartitions()
     time.sleep(.05) #seconds
 
 ###########################################################################################
@@ -263,7 +263,8 @@ def syncAllProxies():
 #################################
 # sync all partition dictionaries
 #################################
-def syncPartitions():
+def syncAllPartitions():
+    syncPartitions()
     previousDic = b.part_dic
     for partition in b.part_dic:
         replicas = b.part_dic[partition]
@@ -279,7 +280,7 @@ def syncPartitions():
             if cmp(res['part_dic'], b.part_dic) == 0:
                 previousDic = res['part_dic']
             else:
-                syncPartitions()
+                syncAllPartitions()
 
 
 
@@ -397,6 +398,22 @@ def syncWorldProx():
                 'world_proxy_arr': json.dumps(b.world_proxy),
                 'my_ip': b.my_IP,
                 'part_clock': b.part_clock})
+
+
+
+#########################################################
+# sync all proxy in world proxy among partitions
+######################################################
+def syncPartitions():
+    for partition_id in b.part_dic.keys():
+        if partition_id != b.my_part_id:
+            replicas = b.part_dic[partition_id]
+            allNodes = replicas + getThierProxies(partition_id)
+            for node in allNodes:
+                requests.put('http://' + node + '/updateWorldPartition', data = {
+                'part_dic': json.dumps(b.part_dic),
+                'part_clock': b.part_clock})
+
 
 
 
@@ -799,6 +816,25 @@ class UpdateWorldProxy(Resource):
                 for node in their_proxies:
                     b.world_proxy[node] = their_id
             return
+
+
+
+###################################
+# class for updating part dic with other clusters
+#######################################
+class UpdateWorldPartition(Resource):
+    def put(self):
+        data = request.form.to_dict()
+        their_part_dic = json.loads(data['part_dic'])
+        their_part_clock = int(data['part_clock'])
+
+        if their_part_clock > b.part_clock:
+            b.part_dic = their_part_dic
+            return
+        else:
+            return
+
+
 
 #########################################
 # class for adding a node
@@ -1460,6 +1496,7 @@ api.add_resource(GetKeyDetails, '/getKeyDetails/<string:key>')
 api.add_resource(ChangeView, '/changeView')
 api.add_resource(PromoteDemote, '/promoteDemote')
 api.add_resource(UpdateWorldProxy, '/updateWorldProxy')
+api.add_resource(UpdateWorldPartition, '/updateWorldPartition')
 api.add_resource(PutKey,'/putKey/<string:key>')
 api.add_resource(CheckKeyInKv,'/checkKeyInKv/<string:key>')
 api.add_resource(GetValue,'/getValue/<string:key>')
