@@ -50,8 +50,8 @@ def activate_job():
     def run_job():
         while True:
             with app.app_context():
-                time.sleep(1)
                 heartbeat()
+                time.sleep(1)
     thread = threading.Thread(target=run_job)
     thread.start()
 
@@ -110,6 +110,7 @@ def gossip(IP):
         res = response.json()
         # return response
         b.kv_store[key] = (res['value'], res['timestamp'])
+    return
 
 ######################################################################################
 # functon called intermitantly to sync up the partition_view and the kv_stores
@@ -119,10 +120,13 @@ def heartbeat():
     for node in getReplicaArr():
         if(node != b.my_IP):
             gossip(node)
-    # if b.my_IP in getReplicaArr():
-    #     worldSync()
-    #partitionChange()
-    time.sleep(0.05) #seconds
+    # if b.my_IP == getReplicaArr()[0]:
+    #     for node in getReplicaArr()[1:]:
+    #         gossip(node)
+    if b.my_IP in getReplicaArr():
+        worldSync()
+    # partitionChange()
+        time.sleep(.05) #seconds
 
 ###########################################################################################
 # function to check which node is up and down with ping, then promode and demote nodes
