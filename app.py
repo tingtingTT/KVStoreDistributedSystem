@@ -128,6 +128,8 @@ def heartbeat():
     #         gossip(node)
     # if b.my_IP in getReplicaArr():
     #     checkNodeStatus()
+    # syncAllProxies()
+    # syncAllPartitions()
     time.sleep(.05) #seconds
 
 ###########################################################################################
@@ -167,7 +169,7 @@ def checkNodeStatus():
 
 
 ###########################################################
-# sync all after removing a node
+# change partitions based on # proxies and number of replicas
 #####################################################
 def removeNodeSync(delete_node_part_id):
     reDisKey = False
@@ -211,10 +213,6 @@ def removeNodeSync(delete_node_part_id):
         reDistributeKeys()
     return removeNodeSuccess()
 
-
-###########################################################
-# sync all after adding a node
-#####################################################
 def addNodeSync():
     # Enough proxies for a new partition
     if len(b.world_proxy.keys()) >= b.K:
@@ -258,6 +256,169 @@ def addNodeSync():
             app.logger.info('I AM calling node ' + str(node))
             requests.put('http://'+node+'/syncPartDicProxy', data={'part_clock': b.part_clock, 'part_dic': json.dumps(b.part_dic), 'world_proxy': json.dumps(b.world_proxy)})
 
+
+
+#################################
+# sync all world proxy array
+#################################
+def syncAllProxies():
+    syncWorldProx()
+    previousWorldProx = b.world_proxy
+    for partition in b.part_dic.keys():
+        replicas = b.part_dic[partition]
+        allNodes = replicas + getThierProxies(partition)
+        if b.my_IP in allNodes:
+            allNodes.remove(b.my_IP)
+        for node in allNodes:
+
+            response = requests.get('http://'+node+'/getWorldProx')
+            res = response.json()
+            their_world_prox = json.loads(res['world_proxy'])
+            if cmp(previousWorldProx, their_world_prox) == 0:
+                previousWorldProx = their_world_prox
+            else:
+                time.sleep(.2)
+                syncAllProxies()
+
+
+#################################
+# sync all partition dictionaries
+#################################
+def syncAllPartitions():
+    syncPartitions()
+    previousDic = b.part_dic
+    for partition in b.part_dic:
+        replicas = b.part_dic[partition]
+        allNodes = replicas + getThierProxies(partition)
+        if b.my_IP in allNodes:
+            allNodes.remove(b.my_IP)
+        for node in allNodes:
+
+            response = requests.get('http://'+node+'/getPartDic')
+            res = response.json()
+            their_part_dic = json.loads(res['part_dic'])
+            if cmp(their_part_dic, b.part_dic) == 0:
+                previousDic = their_part_dic
+            else:
+                time.sleep(.2)
+                syncAllPartitions()
+
+
+##################################################################
+# function to demote all notes if a partition replica number < K
+##################################################################
+def demoteAllNodes(delete_node_part_id):
+    #app.logger.info('I AM ABOUT TO DEMOTE EVERYONE')
+    # my partition no longer hold, change my part_dic
+    # No proxies to replace replica, so demote everyone
+    new_part_dic = {}
+    new_world_proxy = {}
+    app.logger.info('demoting all nodes in partition ' + str(delete_node_part_id))
+    proxy_node = b.part_dic[delete_node_part_id]
+    temp_part_dic = copy.deepcopy(b.part_dic)
+    #app.logger.info('b DIC'+str(b.part_dic))
+    del temp_part_dic[delete_node_part_id]
+    #app.logger.info('b DIC AFTER '+str(b.part_dic))
+    new_part_dic = renewPartDic(temp_part_dic)
+    temp_world_proxy = copy.deepcopy(b.world_proxy)
+    for node in proxy_node:
+        temp_world_proxy[node] = "0"
+
+
+    b.world_proxy = temp_world_proxy
+    app.logger.info('Setting my world proxy to ' + str(b.world_proxy))
+    b.part_dic = new_part_dic
+    app.logger.info('demoteAllNodes is changing my id')
+    b.my_part_id = "0"
+    app.logger.info('Setting my dictionary to ' + str(b.part_dic))
+
+##########################################
+# Sync world view when partition is deleted
+##########################################
+def syncDemote():
+    previousWorldProx = b.world_proxy
+    previousDic = b.part_dic
+    for index in b.part_dic.keys():
+        replicas = b.part_dic[index]
+        allNodes = replicas + getThierProxies(index)
+        for node in allNodes:
+            if node != b.my_IP:
+                # check world proxy and dic
+                response = requests.get('http://'+node+'/getPartDic')
+                res = response.json()
+                their_part_dic = json.loads(res['part_dic'])
+                response = requests.get('http://'+node+'/getWorldProx')
+                res = response.json()
+                their_world_proxy = json.loads(res['world_proxy'])
+                if cmp(b.part_dic, their_part_dic) == 0 and cmp(b.world_proxy, their_world_proxy)==0:
+                    previousWorldProx = their_world_proxy
+                    previousDic = their_part_dic
+                else:
+                    syncDemote()
+
+
+
+#################################
+# check for partition agreement
+#################################
+def checkPartitionsAgree(checkNodes):
+    app.logger.info('my dic for agreement: ' + str(b.part_dic))
+    app.logger.info('checkNodes = ' + str(checkNodes))
+    app.logger.info('check we all agree')
+    if len(checkNodes) == 0:
+        return
+    previousDic = b.part_dic
+    loopNodes = checkNodes
+    for node in loopNodes:
+        # if node != b.my_IP:
+        # check dic
+        # time.sleep(1)
+        app.logger.info('calling getPartDic on = ' + str(node))
+        response = requests.get('http://'+node+'/getPartDic')
+        res = response.json()
+        their_part_dic = json.loads(res['part_dic'])
+        if cmp(b.part_dic, their_part_dic) == 0:
+            checkNodes.remove(node)
+            app.logger.info('after remove, checkNodes = ' + str(checkNodes))
+            previousDic = their_part_dic
+
+        else:
+            time.sleep(0.2)
+            checkPartitionsAgree(checkNodes)
+
+#########################################################
+# sync all proxy in world proxy among partitions
+######################################################
+def syncWorldProx():
+    for partition_id in b.part_dic.keys():
+        replicas = b.part_dic[partition_id]
+        for node in replicas:
+            if node != b.my_IP:
+                requests.put('http://' + node + '/updateWorldProxy', data = {
+                'part_clock': b.part_clock,
+                'proxy_array': ','.join(getProxyArr()),
+                'part_id': b.my_part_id,
+                'world_proxy_arr': json.dumps(b.world_proxy),
+                'my_ip': b.my_IP})
+
+
+
+
+#########################################################
+# sync all proxy in world proxy among partitions
+######################################################
+def syncPartitions():
+    for partition_id in b.part_dic.keys():
+        replicas = b.part_dic[partition_id]
+        allNodes = replicas + getThierProxies(partition_id)
+        for node in allNodes:
+            if node != b.my_IP:
+                requests.put('http://' + node + '/updateWorldPartition', data = {
+                'part_dic': json.dumps(b.part_dic),
+                'part_clock': b.part_clock})
+
+
+
 ###############################################################
 # returns true if there are no duplicate partitions
 ###############################################################
@@ -293,9 +454,9 @@ def reDistributeKeys():
 def isProxy():
     return (b.my_IP in getProxyArr())
 
-###########################################################
+######################################
 # returns proxies that point to the part_id passed in
-####################################################
+######################################
 def getThierProxies(part_id):
     if len(b.world_proxy) > 0:
         proxy_nodes = []
@@ -305,10 +466,6 @@ def getThierProxies(part_id):
         return proxy_nodes
     else:
         return []
-
-###########################################################
-# returns the partition id that the node belong to
-####################################################
 def getNodePartitionId(node):
     node_id = -1
     for index in b.part_dic.keys():
@@ -318,10 +475,9 @@ def getNodePartitionId(node):
         node_id = b.my_part_id
 
     return node_id
-
-############################################
-# get replica array for the current partition
-############################################
+######################################
+# for retrieving the rep and prox arrs
+########################################
 def getReplicaArr():
     if b.my_part_id != "-1":
         # app.logger.info('MY REPLICAS: '+ str(b.part_dic[b.my_part_id]))
@@ -330,11 +486,6 @@ def getReplicaArr():
     else:
         return []
 
-
-
-############################################
-# get proxy array for the current partition
-############################################
 def getProxyArr():
     if len(b.world_proxy) > 0:
         proxy_nodes = []
@@ -346,16 +497,10 @@ def getProxyArr():
         return []
 
 
-############################################
-# get replica array and proxy array for the current partition
-############################################
 def getPartitionView():
     return getReplicaArr() + getProxyArr()
 
 
-############################################
-# class to check if key is in current Kv
-############################################
 class CheckKeyInKv(Resource):
     def get(self,key):
         if keyCheck(key) == False:
@@ -623,6 +768,23 @@ class GetAllReplicas(Resource):
         return getAllReplicasSuccess()
 
 ###################################
+# class for update view when promoting or demoting
+#######################################
+class PromoteDemote(Resource):
+    def put(self):
+        data = request.form.to_dict()
+        their_clock = int(data['part_clock'])
+        if their_clock > b.part_clock:
+            b.part_clock = int(data['part_clock'])
+            app.logger.info('setting my partiton id to ' + str(data['part_id']))
+            app.logger.info('PromoteDemote is changing my id')
+            b.my_part_id = data['part_id']
+            b.part_dic = json.loads(data['part_dic'])
+            b.node_ID_dic = json.loads(data['node_ID_dic'])
+            b.world_proxy = json.loads(data['world_proxy'])
+        return
+
+###################################
 # class for update view for node
 ######################################
 class ChangeView(Resource):
@@ -637,19 +799,15 @@ class ChangeView(Resource):
         b.world_proxy = json.loads(data['world_proxy'])
         return
 
-
-############################################
-# set partition ID for current node
-############################################
 class SetPartID(Resource):
     def put(self):
         data=request.form.to_dict()
         their_part_id = data['part_id']
         b.my_part_id = their_part_id
 
-######################################################
+###################################
 # class for updating world_proxy with other clusters
-######################################################
+#######################################
 class UpdateWorldProxy(Resource):
     def put(self):
         data = request.form.to_dict()
@@ -784,6 +942,42 @@ class UpdateView(Resource):
 
         # remove a node
         elif type == 'remove':
+            # if add_node_ip_port not in getPartitionView():
+            #     for index in b.part_dic.keys():
+            #         if index != b.my_part_id:
+            #             replicas = b.part_dic[index]
+            #             try:
+            #                 index2 = 0
+            #                 while replicas[index2] == add_node_ip_port:
+            #                     index2 += 1
+            #                 response = requests.get('http://'+replicas[index2]+'/kv-store/get_partition_members', timeout=10, data={'partition_id': index})
+            #                 data = response.json()
+            #                 members = data['partition_members'].split(',')
+            #                 if add_node_ip_port in members:
+            #                     for member in members:
+            #                         if member != add_node_ip_port:
+            #                             app.logger.info('PARTITION MEMBER' + str(member))
+            #                             if data['result'] == "success":
+            #                                 response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
+            #                                 # for partition in b.part_dic:
+            #                                 #     replicas = b.part_dic[partition]
+            #                                 #     allNodes = replicas + getThierProxies(partition)
+            #                                 #     for node in allNodes:
+            #                                 #         if node != b.my_IP and node != add_node_ip_port:
+            #                                 #             response2 = requests.get('http://'+node+'/getNodeState')
+            #                                 #             res = response2.json()
+            #                                 #             their_part_dic = json.loads(res['part_dic'])
+            #                                 #             their_world_prox = json.loads(res['world_proxy'])
+            #                                 #             b.part_dic = their_part_dic
+            #                                 #             b.world_proxy = their_world_prox
+            #                                 #             b.part_clock += 1
+            #                                 return make_response(jsonify(response.json()), response.status_code)
+            #             except requests.exceptions.Timeout:
+            #                 pass
+            #
+            #
+            #     else:
+            #         return removeNodeDoesNotExist()
             for index in b.part_dic.keys():
                 if add_node_ip_port in b.part_dic[index]:
                     b.part_dic[index].remove(add_node_ip_port)
@@ -823,9 +1017,6 @@ class GetPartDic(Resource):
         return jsonify({'part_dic': json.dumps(b.part_dic)})
 
 
-############################################
-# get world proxy
-############################################
 class GetWorldProx(Resource):
     def get(self):
         return jsonify({'world_proxy': json.dumps(b.world_proxy)})
@@ -842,7 +1033,7 @@ class DeleteProxy(Resource):
         del b.world_proxy[delete_proxy]
 
         return
-###########################################
+
 # class for reset the node if node is removed
 ################################################
 class ResetData(Resource):
@@ -856,11 +1047,11 @@ class ResetData(Resource):
         b.world_proxy[b.my_part_id]=[] # a list of current proxies  IP:Port
         b.part_clock = 0
 
-#################################################################3
+#######################################
 # class for getting key in gossip --> helper
 # Always returns the more up to date value for the key
 # Overwrites the value of the key if the provided info is newer
-#################################################################
+######################################
 class GetKeyDetails(Resource):
     def get(self, key):
         data = request.form.to_dict() # turn the inputted into [key:causal_payload]
@@ -940,11 +1131,26 @@ class Availability(Resource):
 # promote proxy to a replica
 ######################################
 def promoteNode(promote_node_IP, promote_part_id):
+    # only proxy nodes come into this func
+    # update own things
+    # add node to rep list
+    # if promote_node_IP in worldProxy:
     app.logger.info('adding promoted node to dic')
     b.part_dic[promote_part_id].append(promote_node_IP)
+
+# Tingting: do we still need this??
+    # ChangeView on node
+    # try:
+    #     requests.put("http://"+promote_node_IP+"/promoteDemote", timeout=5, data={
+    #     'part_id': b.my_part_id,
+    #     'part_dic':json.dumps(b.part_dic),
+    #     'node_ID_dic': json.dumps(b.node_ID_dic),
+    #     'part_clock': b.part_clock,
+    #     'world_proxy': json.dumps(b.world_proxy)})
+    # except requests.exceptions.Timeout:
+    #     pass
     del b.world_proxy[promote_node_IP]
     return
-
 ############################################
 # demote replica to a proxy
 ######################################
@@ -965,7 +1171,11 @@ def demoteNode(demote_node_IP):
         'world_proxy': json.dumps(b.world_proxy)})
     except requests.exceptions.Timeout:
         pass
+
+
     return
+    # else, since I'm newer than others, when it comes my turn to ping others,
+    # I'll eventually demote someone else. Therefore, do nothing
 
 ####################################################################
 # merges current vector clock with sender's vector clock
@@ -1031,9 +1241,35 @@ class GetPartitionMembers(Resource):
 # changed return type
         return jsonify({"result":"success","partition_members":','.join(id_list)})
 
-############################################
-# sync world after add or remove
-############################################
+#########################################################################################
+# Sync the Partition Dictionaries between partitions. Take in part_clock and part_dic
+#############################################################################
+class SyncPartDic(Resource):
+    def put(self):
+        #app.logger.info('REPLICA ARR AT START: ' + str(getReplicaArr()))
+        data = request.form.to_dict()
+        their_part_clock = int(data['part_clock'])
+        their_part_dic = json.loads(data['part_dic'])
+
+
+        if b.part_clock < their_part_clock:
+            b.part_clock += 1
+            b.part_dic = their_part_dic
+            for node in getPartitionView():
+                if node != b.my_IP:
+                    try:
+                        requests.put("http://"+node+"/changeView", timeout=5, data={
+                        'part_id': b.my_part_id,
+                        'part_dic':json.dumps(b.part_dic),
+                        'node_ID_dic': json.dumps(b.node_ID_dic),
+                        'part_clock': b.part_clock,
+                        'world_proxy': json.dumps(b.world_proxy)})
+                    except requests.exceptions.Timeout:
+                        pass
+
+        return jsonify({'part_dic':json.dumps(b.part_dic)})
+
+
 class SyncPartDicProxy(Resource):
     def put(self):
         data = request.form.to_dict()
@@ -1050,7 +1286,31 @@ class SyncPartDicProxy(Resource):
             b.part_clock += 1
             b.part_dic = their_part_dic
             b.world_proxy = their_world_proxy
+            # for part_id in b.part_dic.keys():
+            #     if b.my_IP in b.part_dic[part_id]:
+            #         b.my_part_id = part_id
+            #         #app.logger.info('MY IP'+str(b.my_IP)+"...MY ID"+str(b.my_part_id))
+            #
+            # #app.logger.info('I AM BEFORE FOR LOOP...')
+            # for node in getPartitionView():
+            #     #app.logger.info('I JUST GOT TO FOR LOOP...')
+            #     if node != b.my_IP:
+            #         #app.logger.info('PART ID PASSING...'+str(b.my_part_id))
+            #         #app.logger.info('PART DIC PASSING...'+str(b.part_dic))
+            #         #app.logger.info('WORLD PROXY PASSING...'+str(b.world_proxy))
+            #         #app.logger.info('CLOCK PASSING...'+str(b.part_clock))
+            #         #app.logger.info('I AM CALLING CHANGEVIEW AT '+str(getReplicaArr()))
+            #
+            #         requests.put("http://"+node+"/changeView", data={
+            #         'part_id': b.my_part_id,
+            #         'part_dic':json.dumps(b.part_dic),
+            #         'node_ID_dic': json.dumps(b.node_ID_dic),
+            #         'part_clock': b.part_clock,
+            #         'world_proxy': json.dumps(b.world_proxy)})
+
         return
+
+    # return jsonify({'part_dic':json.dumps(b.part_dic)})
 
 
 ####################################################
