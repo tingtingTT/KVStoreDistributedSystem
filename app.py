@@ -655,8 +655,21 @@ class BasicGetPut(Resource):
                 return getSuccess(value, my_time)
 
             elif not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
-                return cusError('payloads are concurrent',404)
-            else:
+                # paylodas are concurrent, so ask another replica
+                for replica in getReplicaArr():
+                    try:
+                        response = requests.get('http://'+replica+'getKeyDetails', data={
+                        'causal_payload': sender_kv_store_vector_clock,
+                        'timestamp': b.kv_store[key][1],
+                        'nodeID': b.node_ID_dic[b.my_IP],
+                        'val': b.kv_store[key][0]})
+                        res = response.json()
+                        if res['result'] == 'success':
+                            return make_response(jsonify(res), response.status_code)
+                    except requests.exceptions.ConnectionError:
+                        pass
+
+           else:
                 return cusError('Invalid causal_payload',404)
 
         # if senders causal_payload is less than or equal to mine, I am as, or more up to date
@@ -691,9 +704,12 @@ class BasicGetPut(Resource):
             return cusError('val key not provided',404)
         if isProxy():
             try:
-                response = requests.put('http://'+ getReplicaArr()[0] + '/kv-store/' + key, timeout=10, data=request.form)
-                return make_response(jsonify(response.json()), response.status_code)
-            except requests.exceptions.Timeout:
+                for replica in getReplicaArr():
+                    response = requests.put('http://'+ replica + '/kv-store/' + key, data=request.form)
+                    res = response.json()
+                    if res['result'] == 'success':
+                        return make_response(jsonify(response.json()), response.status_code)
+            except requests.exceptions.ConnectionError:
                 pass
 
         if key in b.kv_store.keys():
@@ -719,30 +735,32 @@ class BasicGetPut(Resource):
                 return cusError('payloads are concurrent',404)
 
         else:
+            app.logger.info('check if someone else has it')
             for partID in b.part_dic.keys():
                 if(partID != b.my_part_id):
-                    node = b.part_dic[partID][0] # 1st node in that partition
-                    try:
-                        r = requests.get('http://'+node+'/checkKeyInKv/'+key, timeout=5)
-                        a = r.json()
-                        if (a['key'] == 'True'):
-                            r = requests.put('http://'+node+'/putKey/' + key, timeout=5, data=request.form)
-                            return make_response(jsonify(r.json()), r.status_code)
-                    except requests.exceptions.Timeout:
-                        pass
-
+                    replicas = b.part_dic[partID]# 1st node in that partition
+                    for rep in replicas:
+                        try:
+                            r = requests.get('http://'+rep+'/checkKeyInKv/'+key)
+                            a = r.json()
+                            if (a['key'] == 'True'):
+                                r = requests.put('http://'+rep+'/putKey/' + key, data=request.form)
+                                return make_response(jsonify(r.json()), r.status_code)
+                        except requests.exceptions.ConnectionError:
+                            pass
 
         # otherwise key does not exist, add new key
         node = b.my_IP
-        while(node == b.my_IP):
-            random_part_id = random.randint(0,len(b.part_dic)-1)
-            rand_node = random.randint(0, b.K-1)
-            node = b.part_dic[str(random_part_id)][rand_node]
         try:
-            r = requests.put('http://'+node+'/putKey/' + key, timeout=5, data=request.form)
+            while(node == b.my_IP):
+                random_part_id = random.randint(0,len(b.part_dic)-1)
+                rand_node = random.randint(0, b.K-1)
+                node = b.part_dic[str(random_part_id)][rand_node]
+            app.logger.info('random node = ' + str(node))
+            r = requests.put('http://'+node+'/putKey/' + key, data=request.form)
             return make_response(jsonify(r.json()), r.status_code)
-        except requests.exceptions.Timeout:
-            pass
+        except requests.exceptions.ConnectionError:
+                pass
 
 
 
