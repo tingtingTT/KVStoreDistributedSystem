@@ -175,6 +175,7 @@ def partitionChange():
         # promote your own shit first
         if len(getProxyArr()) > 0:
             promoteNode(getProxyArr()[0])
+            del b.world_proxy[getProxyArr()[0]]
             app.logger.info('calling promote .......1')
 
         # start asking other people
@@ -307,7 +308,7 @@ def demoteAllNodes():
     b.world_proxy = temp_world_proxy
     b.part_dic = new_part_dic
     b.my_part_id = "0"
-    
+
 ##########################################
 # Sync world view when partition is deleted
 ##########################################
@@ -1095,12 +1096,8 @@ def promoteNode(promote_node_IP):
     # update own things
     # add node to rep list
     # if promote_node_IP in worldProxy:
-    if promote_node_IP in b.world_proxy.keys():
-        app.logger.info('DELETING ' + str(promote_node_IP) + 'FROM WORLD PROX')
-        del b.world_proxy[promote_node_IP] # remove node in prx list
-
+    
     b.part_dic[b.my_part_id].append(promote_node_IP)
-
 
     # ChangeView on node
     requests.put("http://"+promote_node_IP+"/promoteDemote", data={
