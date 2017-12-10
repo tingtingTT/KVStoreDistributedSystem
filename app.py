@@ -109,11 +109,11 @@ def gossip(IP):
             'val':b.kv_store[key][0],
             'timestamp': b.kv_store[key][1],
             'nodeID':b.node_ID_dic[b.my_IP]})
+            res = response.json()
+            # return response
+            b.kv_store[key] = (res['value'], res['timestamp'])
         except requests.exceptions.Timeout:
             pass
-        res = response.json()
-        # return response
-        b.kv_store[key] = (res['value'], res['timestamp'])
     return
 
 ######################################################################################
@@ -268,15 +268,16 @@ def syncAllProxies():
         for node in allNodes:
             try:
                 response = requests.get('http://'+node+'/getWorldProx', timeout=1)
+                res = response.json()
+                their_world_prox = json.loads(res['world_proxy'])
+                if cmp(previousWorldProx, their_world_prox) == 0:
+                    previousWorldProx = their_world_prox
+                else:
+                    time.sleep(.2)
+                    syncAllProxies()
             except requests.exceptions.Timeout:
                 pass
-            res = response.json()
-            their_world_prox = json.loads(res['world_proxy'])
-            if cmp(previousWorldProx, their_world_prox) == 0:
-                previousWorldProx = their_world_prox
-            else:
-                time.sleep(.2)
-                syncAllProxies()
+
 
 
 #################################
@@ -293,15 +294,16 @@ def syncAllPartitions():
         for node in allNodes:
             try:
                 response = requests.get('http://'+node+'/getPartDic', timeout=1)
+                res = response.json()
+                their_part_dic = json.loads(res['part_dic'])
+                if cmp(their_part_dic, b.part_dic) == 0:
+                    previousDic = their_part_dic
+                else:
+                    time.sleep(.2)
+                    syncAllPartitions()
             except requests.exceptions.Timeout:
                 pass
-            res = response.json()
-            their_part_dic = json.loads(res['part_dic'])
-            if cmp(their_part_dic, b.part_dic) == 0:
-                previousDic = their_part_dic
-            else:
-                time.sleep(.2)
-                syncAllPartitions()
+
 
 
 
@@ -346,24 +348,18 @@ def syncDemote():
                 # check world proxy and dic
                 try:
                     response = requests.get('http://'+node+'/getPartDic', timeout=1)
-                except requests.exceptions.Timeout:
-                    pass
-                res = response.json()
-                their_part_dic = json.loads(res['part_dic'])
-
-                try:
+                    res = response.json()
+                    their_part_dic = json.loads(res['part_dic'])
                     response = requests.get('http://'+node+'/getWorldProx', timeout=1)
+                    res = response.json()
+                    their_world_proxy = json.loads(res['world_proxy'])
+                    if cmp(b.part_dic, their_part_dic) == 0 and cmp(b.world_proxy, their_world_proxy)==0:
+                        previousWorldProx = their_world_proxy
+                        previousDic = their_part_dic
+                    else:
+                        syncDemote()
                 except requests.exceptions.Timeout:
                     pass
-
-                res = response.json()
-                their_world_proxy = json.loads(res['world_proxy'])
-                if cmp(b.part_dic, their_part_dic) == 0 and cmp(b.world_proxy, their_world_proxy)==0:
-                    previousWorldProx = their_world_proxy
-                    previousDic = their_part_dic
-                else:
-                    syncDemote()
-
 
 
 #################################
@@ -384,14 +380,14 @@ def checkPartitionsAgree(checkNodes):
         app.logger.info('calling getPartDic on = ' + str(node))
         try:
             response = requests.get('http://'+node+'/getPartDic', timeout=1)
+            res = response.json()
+            their_part_dic = json.loads(res['part_dic'])
+            if cmp(b.part_dic, their_part_dic) == 0:
+                checkNodes.remove(node)
+                app.logger.info('after remove, checkNodes = ' + str(checkNodes))
+                previousDic = their_part_dic
         except requests.exceptions.Timeout:
             pass
-        res = response.json()
-        their_part_dic = json.loads(res['part_dic'])
-        if cmp(b.part_dic, their_part_dic) == 0:
-            checkNodes.remove(node)
-            app.logger.info('after remove, checkNodes = ' + str(checkNodes))
-            previousDic = their_part_dic
         else:
             time.sleep(0.2)
             checkPartitionsAgree(checkNodes)
@@ -648,9 +644,10 @@ class BasicGetPut(Resource):
         if isProxy():
             try:
                 response = requests.get('http://'+ getReplicaArr()[0] + '/kv-store/' + key, timeout=1, data=request.form)
+                return make_response(jsonify(response.json()), response.status_code)
             except requests.exceptions.Timeout:
                 pass
-            return make_response(jsonify(response.json()), response.status_code)
+
 
         if key in b.kv_store.keys():
             if(sender_kv_store_vector_clock == ''):
@@ -678,15 +675,13 @@ class BasicGetPut(Resource):
                     node = b.part_dic[partID][0] # 1st node in that partition
                     try:
                         r = requests.get('http://'+node+'/checkKeyInKv/'+key, timeout=1)
+                        a = r.json()
+                        if (a['key'] == 'True'):
+                            r = requests.get('http://'+node+'/getValue/' + key, timeout=1, data=request.form)
+                            return make_response(jsonify(r.json()), r.status_code)
                     except requests.exceptions.Timeout:
                         pass
-                    a = r.json()
-                    if (a['key'] == 'True'):
-                        try:
-                            r = requests.get('http://'+node+'/getValue/' + key, timeout=1, data=request.form)
-                        except requests.exceptions.Timeout:
-                            pass
-                        return make_response(jsonify(r.json()), r.status_code)
+
             return cusError('Key does not exist',404)
 
 
@@ -706,9 +701,9 @@ class BasicGetPut(Resource):
         if isProxy():
             try:
                 response = requests.put('http://'+ getReplicaArr()[0] + '/kv-store/' + key, timeout=1, data=request.form)
+                return make_response(jsonify(response.json()), response.status_code)
             except requests.exceptions.Timeout:
                 pass
-            return make_response(jsonify(response.json()), response.status_code)
 
         if key in b.kv_store.keys():
             if sender_kv_store_vector_clock == '':
@@ -738,16 +733,13 @@ class BasicGetPut(Resource):
                     node = b.part_dic[partID][0] # 1st node in that partition
                     try:
                         r = requests.get('http://'+node+'/checkKeyInKv/'+key, timeout=1)
+                        a = r.json()
+                        if (a['key'] == 'True'):
+                            r = requests.put('http://'+node+'/putKey/' + key, timeout=1, data=request.form)
+                            return make_response(jsonify(r.json()), r.status_code)
                     except requests.exceptions.Timeout:
                         pass
 
-                    a = r.json()
-                    if (a['key'] == 'True'):
-                        try:
-                            r = requests.put('http://'+node+'/putKey/' + key, timeout=1, data=request.form)
-                        except requests.exceptions.Timeout:
-                            pass
-                        return make_response(jsonify(r.json()), r.status_code)
 
         # otherwise key does not exist, add new key
         node = b.my_IP
@@ -757,9 +749,9 @@ class BasicGetPut(Resource):
             node = b.part_dic[str(random_part_id)][rand_node]
         try:
             r = requests.put('http://'+node+'/putKey/' + key, timeout=1, data=request.form)
+            return make_response(jsonify(r.json()), r.status_code)
         except requests.exceptions.Timeout:
             pass
-        return make_response(jsonify(r.json()), r.status_code)
 
 
 
@@ -997,23 +989,20 @@ class UpdateView(Resource):
                         replicas = b.part_dic[index]
                         try:
                             response = requests.get('http://'+replicas[0]+'/kv-store/get_partition_members', timeout=1, data={'partition_id': index})
+                            data = response.json()
+                            members = data['partition_members'].split(',')
+                            if add_node_ip_port in members:
+                                for member in members:
+                                    if member != add_node_ip_port:
+                                        app.logger.info('PARTITION MEMBER' + str(member))
+                                        if data['result'] == "success":
+                                            # response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
+                                            # return make_response(jsonify(response.json()), response.status_code)
+                                                response = requests.put('http://'+member+'/kv-store/update_view?type=remove', timeout=1, data={'ip_port': add_node_ip_port})
+                                                resp = response.json()
+                                                return make_response(jsonify(resp), response.status_code)
                         except requests.exceptions.Timeout:
                             pass
-                        data = response.json()
-                        members = data['partition_members'].split(',')
-                        if add_node_ip_port in members:
-                            for member in members:
-                                if member != add_node_ip_port:
-                                    app.logger.info('PARTITION MEMBER' + str(member))
-                                    if data['result'] == "success":
-                                        # response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
-                                        # return make_response(jsonify(response.json()), response.status_code)
-                                        try:
-                                            response = requests.put('http://'+member+'/kv-store/update_view?type=remove', timeout=1, data={'ip_port': add_node_ip_port})
-                                        except requests.exceptions.Timeout:
-                                            pass
-                                        resp = response.json()
-                                        return make_response(jsonify(resp), response.status_code)
 
 
                 else:
@@ -1025,10 +1014,11 @@ class UpdateView(Resource):
                         if replica != add_node_ip_port:
                             try:
                                 response = requests.put('http://'+replica+'/kv-store/update_view?type=remove', timeout=1, data={'ip_port': add_node_ip_port})
+
+                                resp = response.json()
+                                return make_response(jsonify(resp), response.status_code)
                             except requests.exceptions.Timeout:
                                 pass
-                            resp = response.json()
-                            return make_response(jsonify(resp), response.status_code)
 
                 if add_node_ip_port in getReplicaArr():
                     app.logger.info('IM DELETING FROM MY PART DIC')
