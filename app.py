@@ -1,4 +1,4 @@
-#######################################################
+tempkv#######################################################
 from flask import Flask, abort, request, jsonify, make_response, current_app
 from flask_restful import Resource, Api
 import json
@@ -438,15 +438,26 @@ def reDistributeKeys():
     b.kv_store = {}
     b.kv_store_vector_clock = [0]*8
     app.logger.info('tempkv = ' + str(tempkv))
-    # reset kv for all replicas
+
+    app.logger.info('length of part_dic = ' + str(len(b.part_dic)))
     for rep in getReplicaArr():
         if rep != b.my_IP:
             requests.put('http://'+rep+'/resetKv')
 
     for key in tempkv.keys():
-        randID = str(random.randint(0,len(b.part_dic)-1))
-        requests.put('http://'+b.part_dic[randID][0]+'/writeKey', data={'key':key, 'val':tempkv[key][0], 'timestamp': tempkv[key][1]})
-
+        app.logger.info('tempkv = ' + str(tempkv))
+        while(key in tempkv.keys()):
+            randID = str(random.randint(0,len(b.part_dic)-1))
+            app.logger.info('random part = ' + randID)
+            rand_node = random.randint(0, b.K-1)
+            node = b.part_dic[str(randID)][rand_node]
+            app.logger.info('random node = ' + node)
+            if node != b.my_IP:
+                try:
+                    requests.put('http://'+node+'/writeKey', data={'key':key, 'val':tempkv[key][0], 'timestamp': tempkv[key][1]})
+                    del tempkv[key]
+                except requests.exceptions.ConnectionError:
+                    pass
 
 #################################################
 # re-distribute keys among partitions
