@@ -981,14 +981,20 @@ class UpdateView(Resource):
             for index in b.part_dic.keys():
                 if add_node_ip_port in b.part_dic[index]:
                     b.part_dic[index].remove(add_node_ip_port)
-                    requests.put('http://'+add_node_ip_port+'/reset_data')
+                    try:
+                        requests.put('http://'+add_node_ip_port+'/reset_data', timeout=5)
+                    except requests.exceptions.Timeout:
+                        pass
                     b.part_clock += 1
                     removeNodeSync(index)
                     return removeNodeSuccess()
                 elif add_node_ip_port in b.world_proxy:
                     delete_node_part_id = b.world_proxy[add_node_ip_port]
                     del b.world_proxy[add_node_ip_port]
-                    requests.put('http://'+add_node_ip_port+'/reset_data')
+                    try:
+                        requests.put('http://'+add_node_ip_port+'/reset_data', timeout=5)
+                    except requests.exceptions.Timeout:
+                        pass
                     b.part_clock += 1
                     removeNodeSync(delete_node_part_id)
                     return removeNodeSuccess()
