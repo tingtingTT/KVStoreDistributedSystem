@@ -198,6 +198,7 @@ def partitionChange():
                     pass
 
         else:
+            partitionsChanged = True
             app.logger.info('NO PROXIES, SO DEMOTE LEFT OVER NODES')
             demoteAllNodes()
 
@@ -315,6 +316,7 @@ def demoteAllNodes():
     b.part_dic = new_part_dic
     app.logger.info('demoteAllNodes is changing my id')
     b.my_part_id = "0"
+    b.proxy_clock += 1
 
 ##########################################
 # Sync world view when partition is deleted
@@ -391,13 +393,17 @@ def syncWorldProx():
 ######################################################
 def syncPartitions():
     for partition_id in b.part_dic.keys():
-        if partition_id != b.my_part_id:
-            replicas = b.part_dic[partition_id]
-            allNodes = replicas + getThierProxies(partition_id)
-            for node in allNodes:
+        replicas = b.part_dic[partition_id]
+        allNodes = replicas + getThierProxies(partition_id)
+        for node in allNodes:
+            if node != b.my_IP:
                 requests.put('http://' + node + '/updateWorldPartition', data = {
                 'part_dic': json.dumps(b.part_dic),
                 'part_clock': b.part_clock})
+
+
+
+
 
 
 
@@ -462,8 +468,8 @@ def getNodePartitionId(node):
 def getReplicaArr():
     if b.my_part_id != "-1":
         # app.logger.info('MY REPLICAS: '+ str(b.part_dic[b.my_part_id]))
-        if len(b.part_dic[b.my_part_id]) > 0:
-            return b.part_dic[b.my_part_id]
+        if len(b.part_dic[getNodePartitionId(b.my_IP)]) > 0:
+            return b.part_dic[getNodePartitionId(b.my_IP)]
     else:
         return []
 
@@ -471,7 +477,7 @@ def getProxyArr():
     if len(b.world_proxy) > 0:
         proxy_nodes = []
         for node in b.world_proxy:
-            if b.world_proxy[node] == b.my_part_id:
+            if b.world_proxy[node] == getNodePartitionId(b.my_IP):
                 proxy_nodes.append(node)
         return proxy_nodes
     else:
@@ -819,10 +825,14 @@ class UpdateWorldPartition(Resource):
         data = request.form.to_dict()
         their_part_dic = json.loads(data['part_dic'])
         their_part_clock = int(data['part_clock'])
-
+        app.logger.info('in update world part')
         if their_part_clock > b.part_clock:
+            app.logger.info('their clock is bigger')
+            app.logger.info('their dic: ' + str(their_part_dic))
+            app.logger.info('my dic: ' + str(b.part_dic))
             b.part_dic = their_part_dic
             b.part_clock += 1
+            b.part_id = getNodePartitionId(b.my_IP)
             return
         else:
             return
@@ -935,18 +945,20 @@ class UpdateView(Resource):
                                         # return make_response(jsonify(response.json()), response.status_code)
                                         response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
                                         resp = response.json()
-                                        numPartitions = int(resp['number_of_partitions'])
-                                        # allNodes = getAllNodes()
-                                        # allNodes.remove(b.my_IP)
-                                        # time.sleep(.5)
-                                        # checkPartitionsAgree(allNodes)
-                                        # time.sleep(2)
-                                        return removeNodeSuccess(numPartitions)
+                                        return make_response(jsonify(resp), response.status_code)
 
 
                 else:
                     return removeNodeDoesNotExist()
             else:
+
+                if isProxy():
+                    for replica in getReplicaArr():
+                        if replica != add_node_ip_port:
+                            response = requests.put('http://'+replica+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
+                            resp = response.json()
+                            return make_response(jsonify(resp), response.status_code)
+
                 if add_node_ip_port in getReplicaArr():
                     app.logger.info('IM DELETING FROM MY PART DIC')
                     b.part_dic[b.my_part_id].remove(add_node_ip_port)
@@ -958,8 +970,10 @@ class UpdateView(Resource):
                 for node in getPartitionView():
                     if node != add_node_ip_port and node != b.my_IP:
                         try:
-                            requests.put('http://'+ node +'/removeNode', data = {'ip_port': add_node_ip_port})
+                            requests.put('http://'+ node +'/removeNode', timeout=1, data = {'ip_port': add_node_ip_port})
                         except requests.exceptions.ConnectionError:
+                            pass
+                        except requests.exceptions.Timeout:
                             pass
 
                 partitionChange()
@@ -1120,12 +1134,15 @@ def promoteNode(promote_node_IP):
     b.part_dic[b.my_part_id].append(promote_node_IP)
 
     # ChangeView on node
-    requests.put("http://"+promote_node_IP+"/promoteDemote", data={
-    'part_id': b.my_part_id,
-    'part_dic':json.dumps(b.part_dic),
-    'node_ID_dic': json.dumps(b.node_ID_dic),
-    'part_clock': b.part_clock,
-    'world_proxy': json.dumps(b.world_proxy)})
+    try:
+        requests.put("http://"+promote_node_IP+"/promoteDemote", timeout=1, data={
+        'part_id': b.my_part_id,
+        'part_dic':json.dumps(b.part_dic),
+        'node_ID_dic': json.dumps(b.node_ID_dic),
+        'part_clock': b.part_clock,
+        'world_proxy': json.dumps(b.world_proxy)})
+    except requests.exceptions.Timeout:
+        pass
     return
 ############################################
 # demote replica to a proxy
@@ -1138,12 +1155,15 @@ def demoteNode(demote_node_IP):
     if demote_node_IP in getReplicaArr():
         b.part_dic[b.my_part_id].remove(demote_node_IP)
     b.world_proxy[demote_node_IP] = b.my_part_id
-    requests.put("http://"+demote_node_IP+"/promoteDemote", data={
-    'part_id': b.my_part_id,
-    'part_dic':json.dumps(b.part_dic),
-    'part_clock': b.part_clock,
-    'node_ID_dic': json.dumps(b.node_ID_dic),
-    'world_proxy': json.dumps(b.world_proxy)})
+    try:
+        requests.put("http://"+demote_node_IP+"/promoteDemote", timeout=1, data={
+        'part_id': b.my_part_id,
+        'part_dic':json.dumps(b.part_dic),
+        'part_clock': b.part_clock,
+        'node_ID_dic': json.dumps(b.node_ID_dic),
+        'world_proxy': json.dumps(b.world_proxy)})
+    except requests.exceptions.Timeout:
+        pass
 
 
     return

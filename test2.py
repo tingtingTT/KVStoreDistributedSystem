@@ -27,14 +27,6 @@ class Node:
         return self.ip
 
 
-
-###################################################
-def get_node_state(ip_port):
-    response = req.get("http://" + hostname + ":" + ip_port +'/getNodeState')
-    print(response.json())
-####################################################
-
-
 def generate_random_keys(n):
     alphabet = string.ascii_lowercase
     keys = []
@@ -352,6 +344,8 @@ if __name__ == "__main__":
     # for instance, the below line would run only tests 2 and 9.
     # tests_to_run = [2, 9]
     tests_to_run = [1]
+    # tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
 
     if 1 in tests_to_run:
         """ TESTS FOR PARTITION ADJUSTMENTS """
@@ -372,18 +366,6 @@ if __name__ == "__main__":
             n3 = start_new_node(container_name, K=2, net=network, sudo=sudo)
 
             resp_dict = add_node_to_kvs(hostname, nodes[0], n1)
-            # get_node_state(nodes[0].access_port)
-            # print("\n")
-            # get_node_state(nodes[1].access_port)
-            # print("\n")
-            # get_node_state(nodes[2].access_port)
-            # print("\n")
-            # get_node_state(nodes[3].access_port)
-            # print("\n")
-            # get_node_state(n1.access_port)
-            # print("\n")
-            # get_node_state(n2.access_port)
-            # print("\n")
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 2:
                 print("ERROR: the number of partitions should be 2, but it is " + str(number_of_partitions))
@@ -402,22 +384,8 @@ if __name__ == "__main__":
             else:
                 print("OK, the number of partitions is 3")
 
-            # get_node_state(nodes[0].access_port)
-            # print("\n")
-            # get_node_state(nodes[1].access_port)
-            # print("\n")
-            # get_node_state(nodes[2].access_port)
-            # print("\n")
-            # get_node_state(nodes[3].access_port)
-            # print("\n")
-            # get_node_state(n1.access_port)
-            # print("\n")
-            # get_node_state(n2.access_port)
-            # print("\n")
-
             print("Deleting nodes ...")
             # deleted 1 node (7-1 = 6)
-            # time.sleep(1)
             resp_dict = delete_node_from_kvs(hostname, n3, nodes[0])
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 3:
@@ -425,7 +393,6 @@ if __name__ == "__main__":
             else:
                 print("OK, the number of partitions is 3")
             # deleted 2 nodes (7-2 = 5)
-            # time.sleep(1)
             resp_dict = delete_node_from_kvs(hostname, n3, nodes[2])
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 2:
@@ -433,7 +400,6 @@ if __name__ == "__main__":
             else:
                 print("OK, the number of partitions is 2")
             # deleted 3 nodes (7-3 = 4)
-            # time.sleep(1)
             resp_dict = delete_node_from_kvs(hostname, n3, n2)
             number_of_partitions = resp_dict.get('number_of_partitions')
             if number_of_partitions != 2:
@@ -458,47 +424,15 @@ if __name__ == "__main__":
             print(test_description)
             nodes = start_kvs(4, container_name, K=2, net=network, sudo=sudo)
             keys = generate_random_keys(60)
-            # add_keys(hostname, nodes, keys, 1)
-            get_node_state(nodes[0].access_port)
-            print("\n")
-            get_node_state(nodes[1].access_port)
-            print("\n")
-            get_node_state(nodes[2].access_port)
-            print("\n")
-            get_node_state(nodes[3].access_port)
-            print("\n")
+            add_keys(hostname, nodes, keys, 1)
             print("Adding 2 nodes")
             n1 = start_new_node(container_name, K=2, net=network, sudo=sudo)
             n2 = start_new_node(container_name, K=2, net=network, sudo=sudo)
 
             resp_dict1 = add_node_to_kvs(hostname, nodes[0], n1)
-            time.sleep(8)
-            get_node_state(nodes[0].access_port)
-            print("\n")
-            get_node_state(nodes[1].access_port)
-            print("\n")
-            get_node_state(nodes[2].access_port)
-            print("\n")
-            get_node_state(nodes[3].access_port)
-            print("\n")
-            get_node_state(n1.access_port)
-            print("\n")
-            get_node_state(n2.access_port)
-            print("\n")
+            time.sleep(2)
             resp_dict2 = add_node_to_kvs(hostname, nodes[2], n2)
-            time.sleep(8)
-            get_node_state(nodes[0].access_port)
-            print("\n")
-            get_node_state(nodes[1].access_port)
-            print("\n")
-            get_node_state(nodes[2].access_port)
-            print("\n")
-            get_node_state(nodes[3].access_port)
-            print("\n")
-            get_node_state(n1.access_port)
-            print("\n")
-            get_node_state(n2.access_port)
-            print("\n")
+            time.sleep(2)
 
             if not (resp_dict1 is not None and resp_dict2 is not None and
                             resp_dict1['result'] == 'success' and resp_dict2['result'] == 'success'):
@@ -516,7 +450,7 @@ if __name__ == "__main__":
             print("Sending a request to remove the faulty node from the key-value store.")
             resp_dict = delete_node_from_kvs(hostname, n1, nodes[0])
             time.sleep(5)
-            print(json.dumps(resp_dict))
+            print(resp_dict)
             if not (resp_dict is not None and resp_dict['result'] == 'success'):
                 raise Exception("Problems with deleting a node ")
             print("A node was successfully deleted. Verifying that no keys were dropped.")
