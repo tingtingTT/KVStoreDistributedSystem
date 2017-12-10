@@ -29,6 +29,7 @@ class BaseClass():
         self.my_part_id = "-1"
         self.world_proxy = {} # node: id
         self.down_nodes = []
+        self.redistIsHappening = False
         # get variables form ENV variables
         self.my_IP = os.environ.get('IPPORT', None)
         self.IP = socket.gethostbyname(socket.gethostname())
@@ -40,6 +41,7 @@ class BaseClass():
         self.VIEW_list = []
         if self.VIEW_init is not None:
             self.VIEW_list = self.VIEW_init.split(',')
+
 
 b = BaseClass()
 
@@ -102,7 +104,13 @@ def initVIEW():
 # functon called in the heartbeat for syncing the kvstores
 ###############################################################
 def gossip(IP):
+    app.logger.info('b.kv_store in gossip = '+str(b.kv_store))
+    # if b.redistIsHappening:
+    #     app.logger.info('cant gossip, redist is happening')
+    #     time.sleep(10)
+    #     return
     for key in b.kv_store.keys():
+        app.logger.info('calling gossip on ' + str(key))
         try:
             response = requests.get('http://'+IP+'/getKeyDetails/' + key, timeout=5, data = {
             'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)),
@@ -246,8 +254,26 @@ def partitionChange():
 
     if partitionsChanged:
         b.part_clock += 1
-        if b.my_IP == getReplicaArr()[0]:
-            reDistributeKeys()
+        superStore = {}
+        if b.my_IP == b.part_dic["0"][0]:
+            b.redistIsHappening = True
+            for index in b.part_dic:
+                node = b.part_dic[index][0]
+                response = requests.get('http://'+node+'/getKvStore')
+                res = response.json()
+                their_kv_store = json.loads(res['kv_store'])
+                superStore.update(their_kv_store)
+                for node in b.part_dic[index]:
+                    requests.put('http://'+node+'/resetKv', data={
+                    'redistIsHappening': b.redistIsHappening
+                    })
+            reDistributeKeys(superStore)
+            b.redistIsHappening = False
+            for index in b.part_dic:
+                for node in b.part_dic[index]:
+                    requests.put('http://'+node+'/resetKv', data={
+                    'redistIsHappening': b.redistIsHappening
+                    })
 
 #################################
 # sync all world proxy array
@@ -422,19 +448,39 @@ def noDuplicatePartitions(proxies):
 #################################################
 # re-distribute keys among partitions
 ##########################################
-def reDistributeKeys():
-    tempkv = copy.deepcopy(b.kv_store)
+def reDistributeKeys(superStore):
     b.kv_store = {}
     b.kv_store_vector_clock = [0]*8
-    app.logger.info('tempkv = ' + str(tempkv))
-    # reset kv for all replicas
-    for rep in getReplicaArr():
-        if rep != b.my_IP:
-            requests.put('http://'+rep+'/resetKv')
+    # reset kv for all replicas, and tell them to stop gossiping
+    # for rep in getReplicaArr():
+    #     if rep != b.my_IP:
+    #         requests.put('http://'+rep+'/resetKv', data={
+    #         'redistIsHappening': b.redistIsHappening
+    #         })
 
-    for key in tempkv.keys():
-        randID = str(random.randint(0,len(b.part_dic)-1))
-        requests.put('http://'+b.part_dic[randID][0]+'/writeKey', data={'key':key, 'val':tempkv[key][0], 'timestamp': tempkv[key][1]})
+    app.logger.info('length of part_dic = ' + str(len(b.part_dic)))
+    for key in superStore.keys():
+        app.logger.info('tempkv = ' + str(tempkv))
+        while(key in superStore.keys()):
+            randID = str(random.randint(0,len(b.part_dic)-1))
+            app.logger.info('random part = ' + randID)
+            rand_node = random.randint(0, b.K-1)
+            node = b.part_dic[str(randID)][rand_node]
+            app.logger.info('random node = ' + node)
+            if node != b.my_IP:
+                try:
+                    requests.put('http://'+node+'/writeKey', data={'key':key, 'val':superStore[key][0], 'timestamp': superStore[key][1]})
+                    del superStore[key]
+                except requests.exceptions.ConnectionError:
+                    pass
+    # Tell everyone to start gossiping again
+    # for rep in getReplicaArr():
+    #     if rep != b.my_IP:
+    #         requests.put('http://'+rep+'/resetKv', data={
+    #         'redistIsHappening': b.redistIsHappening
+    #         })
+    app.logger.info('b.kv_store at end of redist = '+str(b.kv_store))
+
 
 
 #################################################
@@ -585,14 +631,21 @@ class WriteKey(Resource):
         val = data['val']
         timestamp = data['timestamp']
         b.kv_store[key] = (val, timestamp)
+        b.kv_store_vector_clock[b.node_ID_dic[b.my_IP]] += 1
 
 #####################################
 # class for reset kv
 #####################################
 class ResetKv(Resource):
     def put(self):
-        b.kv_store = {}
-        b.kv_store_vector_clock = [0]*8
+        data = request.form.to_dict()
+        if data['redistIsHappening'] == True:
+            b.redistIsHappening = True
+            b.kv_store = {}
+            b.kv_store_vector_clock = [0]*8
+        else:
+            b.redistIsHappening = False
+        app.logger.info('b.kv_store after resetkv = '+str(b.kv_store))
 
 ######################################
 # class for GET key and PUT key
@@ -611,6 +664,7 @@ class BasicGetPut(Resource):
             return cusError('causal_payload key not provided',404)
 
         if isProxy():
+            #TODO: Maybe put a for loop here? Loop through the replicas until you get a good response
             try:
                 response = requests.get('http://'+ getReplicaArr()[0] + '/kv-store/' + key, timeout=10, data=request.form)
                 return make_response(jsonify(response.json()), response.status_code)
@@ -633,7 +687,20 @@ class BasicGetPut(Resource):
                 return getSuccess(value, my_time)
 
             elif not checkLessEq(b.kv_store_vector_clock, sender_kv_store_vector_clock) or not checkLessEq(sender_kv_store_vector_clock, b.kv_store_vector_clock) or not checkEqual(sender_kv_store_vector_clock, b.kv_store_vector_clock):
-                return cusError('payloads are concurrent',404)
+                # paylodas are concurrent, so ask another replica
+                for replica in getReplicaArr():
+                    try:
+                        response = requests.get('http://'+replica+'getKeyDetails', data={
+                        'causal_payload': sender_kv_store_vector_clock,
+                        'timestamp': b.kv_store[key][1],
+                        'nodeID': b.node_ID_dic[b.my_IP],
+                        'val': b.kv_store[key][0]})
+                        res = response.json()
+                        if res['result'] == 'success':
+                            return make_response(jsonify(res), response.status_code)
+                    except requests.exceptions.ConnectionError:
+                        pass
+
             else:
                 return cusError('Invalid causal_payload',404)
 
@@ -669,12 +736,16 @@ class BasicGetPut(Resource):
             return cusError('val key not provided',404)
         if isProxy():
             try:
-                response = requests.put('http://'+ getReplicaArr()[0] + '/kv-store/' + key, timeout=10, data=request.form)
-                return make_response(jsonify(response.json()), response.status_code)
-            except requests.exceptions.Timeout:
+                for replica in getReplicaArr():
+                    response = requests.put('http://'+ replica + '/kv-store/' + key, data=request.form)
+                    res = response.json()
+                    if res['result'] == 'success':
+                        return make_response(jsonify(response.json()), response.status_code)
+            except requests.exceptions.ConnectionError:
                 pass
 
         if key in b.kv_store.keys():
+            app.logger.info('key is in my kv store')
             if sender_kv_store_vector_clock == '':
                 app.logger.info('sender clock empty...' + str(key))
                 my_time = time.time()
@@ -697,30 +768,35 @@ class BasicGetPut(Resource):
                 return cusError('payloads are concurrent',404)
 
         else:
+            app.logger.info('check if someone else has it')
             for partID in b.part_dic.keys():
                 if(partID != b.my_part_id):
-                    node = b.part_dic[partID][0] # 1st node in that partition
-                    try:
-                        r = requests.get('http://'+node+'/checkKeyInKv/'+key, timeout=5)
-                        a = r.json()
-                        if (a['key'] == 'True'):
-                            r = requests.put('http://'+node+'/putKey/' + key, timeout=5, data=request.form)
-                            return make_response(jsonify(r.json()), r.status_code)
-                    except requests.exceptions.Timeout:
-                        pass
+                    replicas = b.part_dic[partID]# 1st node in that partition
+                    for rep in replicas:
+                        try:
+                            r = requests.get('http://'+rep+'/checkKeyInKv/'+key)
+                            a = r.json()
+                            if (a['key'] == 'True'):
+                                r = requests.put('http://'+rep+'/putKey/' + key, data=request.form)
+                                return make_response(jsonify(r.json()), r.status_code)
+                        except requests.exceptions.ConnectionError:
+                            pass
 
 
-        # otherwise key does not exist, add new key
+        # otherwise key does not exist, add new key to a random node in a random partition.
+        # Don't add to to yourself. (same partition is okay)
+        app.logger.info('no one had it, so add to random one')
         node = b.my_IP
-        while(node == b.my_IP):
-            random_part_id = random.randint(0,len(b.part_dic)-1)
-            rand_node = random.randint(0, b.K-1)
-            node = b.part_dic[str(random_part_id)][rand_node]
         try:
-            r = requests.put('http://'+node+'/putKey/' + key, timeout=5, data=request.form)
+            while(node == b.my_IP):
+                random_part_id = random.randint(0,len(b.part_dic)-1)
+                rand_node = random.randint(0, b.K-1)
+                node = b.part_dic[str(random_part_id)][rand_node]
+            app.logger.info('random node = ' + str(node))
+            r = requests.put('http://'+node+'/putKey/' + key, data=request.form)
             return make_response(jsonify(r.json()), r.status_code)
-        except requests.exceptions.Timeout:
-            pass
+        except requests.exceptions.ConnectionError:
+                pass
 
 
 
@@ -810,6 +886,7 @@ class UpdateWorldProxy(Resource):
         their_proxy_clock = int(data['proxy_clock'])
         their_IP = data['my_ip']
 
+
         if cmp(b.world_proxy, their_world_prox) == 0:
             return
 
@@ -846,6 +923,7 @@ class UpdateWorldPartition(Resource):
         their_part_dic = json.loads(data['part_dic'])
         their_part_clock = int(data['part_clock'])
         app.logger.info('in update world part')
+        old_num_part = len(b.part_dic.keys())
         if their_part_clock > b.part_clock:
             app.logger.info('their clock is bigger')
             app.logger.info('their dic: ' + str(their_part_dic))
@@ -853,6 +931,9 @@ class UpdateWorldPartition(Resource):
             b.part_dic = their_part_dic
             b.part_clock += 1
             b.part_id = getNodePartitionId(b.my_IP)
+            # if len(b.part_dic.keys()) != old_num_part:
+            #     if b.my_IP == getReplicaArr()[0]:
+            #         reDistributeKeys()
             return
         else:
             return
@@ -1037,6 +1118,9 @@ class UpdateDatas(Resource):
 class GetPartDic(Resource):
     def get(self):
         return jsonify({'part_dic': json.dumps(b.part_dic)})
+class GetKvStore(Resource):
+    def get(self):
+        return jsonify({'kv_store':json.dumps(b.kv_store)})
 
 
 class GetWorldProx(Resource):
@@ -1323,7 +1407,7 @@ class SyncPartDicProxy(Resource):
                     #app.logger.info('CLOCK PASSING...'+str(b.part_clock))
                     #app.logger.info('I AM CALLING CHANGEVIEW AT '+str(getReplicaArr()))
 
-                    requests.put("http://"+node+"/changeView" data={
+                    requests.put("http://"+node+"/changeView", data={
                     'part_id': b.my_part_id,
                     'part_dic':json.dumps(b.part_dic),
                     'node_ID_dic': json.dumps(b.node_ID_dic),
@@ -1331,7 +1415,7 @@ class SyncPartDicProxy(Resource):
                     'proxy_clock': b.proxy_clock,
                     'world_proxy': json.dumps(b.world_proxy)})
 
-                    
+
 
     # return jsonify({'part_dic':json.dumps(b.part_dic)})
 
@@ -1546,6 +1630,7 @@ api.add_resource(ResetKv, '/resetKv')
 api.add_resource(DeleteProxy, '/deleteProxy')
 api.add_resource(AddToWorldProxy, '/addToWorldProxy')
 api.add_resource(SyncPartDicProxy, '/syncPartDicProxy')
+api.add_resource(GetKvStore, '/getKvStore')
 
 
 
