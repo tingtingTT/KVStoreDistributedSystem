@@ -123,8 +123,8 @@ def heartbeat():
     # if b.my_IP == getReplicaArr()[0]:
     #     for node in getReplicaArr()[1:]:
     #         gossip(node)
-    if b.my_IP in getReplicaArr():
-        checkNodeStatus()
+    # if b.my_IP in getReplicaArr():
+    #     checkNodeStatus()
     syncAllProxies()
     syncAllPartitions()
     time.sleep(.05) #seconds
@@ -302,37 +302,12 @@ def demoteAllNodes():
     temp_world_proxy = copy.deepcopy(b.world_proxy)
     for node in proxy_node:
         temp_world_proxy[node] = "0"
-#
-
 
     app.logger.info('Setting my dictionary to ' + str(new_part_dic))
     b.world_proxy = temp_world_proxy
     b.part_dic = new_part_dic
     b.my_part_id = "0"
-    b.part_clock += 1
-
-    # give my stuff to the next one in the part_dic
-    #app.logger.info('BEFORE CALLING SYNCPARTDIC: NEW PART DIC'+str(new_part_dic))
-    for partID in new_part_dic.keys():
-        #app.logger.info('DICTIONARY'+str(b.part_dic))
-        #???????????????????????????????????????????
-        # what went wrong earlier
-        replicas = new_part_dic[partID]
-        for node in replicas:
-            try:
-                app.logger.info('I AM CALLING SYNCPARTDIC ON' + str(node))
-                requests.put('http://'+node+'/syncPartDicProxy', timeout=1, data={
-                'part_clock': b.part_clock,
-                'part_dic': json.dumps(new_part_dic),
-                'world_proxy': json.dumps(temp_world_proxy)
-                })
-            except requests.exceptions.Timeout:
-                pass
-    # b.world_proxy = temp_world_proxy
-    # b.part_dic = new_part_dic
-    # b.my_part_id = "0"
-
-
+    
 ##########################################
 # Sync world view when partition is deleted
 ##########################################
@@ -940,7 +915,7 @@ class UpdateView(Resource):
                                         # return make_response(jsonify(response.json()), response.status_code)
                                         response = requests.put('http://'+member+'/kv-store/update_view?type=remove', data={'ip_port': add_node_ip_port})
                                         resp = response.json()
-                                        numPartitions = resp['number_of_partitions']
+                                        numPartitions = int(resp['number_of_partitions'])
                                         # allNodes = getAllNodes()
                                         # allNodes.remove(b.my_IP)
                                         # time.sleep(.5)
@@ -957,8 +932,8 @@ class UpdateView(Resource):
                     b.part_dic[b.my_part_id].remove(add_node_ip_port)
                 elif add_node_ip_port in getProxyArr():
                     del b.world_proxy[add_node_ip_port]
-                else:
-                    requests.put('http://'+add_node_ip_port+'/reset_data')
+
+                requests.put('http://'+add_node_ip_port+'/reset_data')
 
                 for node in getPartitionView():
                     if node != add_node_ip_port and node != b.my_IP:
@@ -1118,14 +1093,15 @@ class Availability(Resource):
 def promoteNode(promote_node_IP):
     # only proxy nodes come into this func
     # update own things
-    b.part_dic[b.my_part_id].append(promote_node_IP) # add node to rep list
+    # add node to rep list
     # if promote_node_IP in worldProxy:
     if promote_node_IP in b.world_proxy.keys():
         app.logger.info('DELETING ' + str(promote_node_IP) + 'FROM WORLD PROX')
         del b.world_proxy[promote_node_IP] # remove node in prx list
 
+    b.part_dic[b.my_part_id].append(promote_node_IP)
 
-    b.part_clock += 1
+
     # ChangeView on node
     requests.put("http://"+promote_node_IP+"/promoteDemote", data={
     'part_id': b.my_part_id,
