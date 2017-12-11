@@ -335,15 +335,15 @@ def is_balanced_on_avg(counts, threshold=0.9):
 
 
 if __name__ == "__main__":
-    container_name = 'hw4'
-    hostname = '192.168.99.100'
+    container_name = 'eee'
+    hostname = 'localhost'
     network = 'mynet'
-    sudo = ''
+    sudo = 'sudo'
 
     # TODO PLEASE NOTE THAT YOU CAN RUN INDIVIDUAL TESTS AS BELOW, IF YOU WOULD LIKE, INSTEAD OF ALL NINE.
     # for instance, the below line would run only tests 2 and 9.
     # tests_to_run = [2, 9]
-    tests_to_run = [2]
+    tests_to_run = [4]
     # tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 
@@ -552,8 +552,9 @@ if __name__ == "__main__":
             pool.join()
             if PRINT_HTTP_RESPONSES:
                 print(result)
-            time.sleep(1)
+            time.sleep(10)
             d = send_put_request(hostname, nodes[0], keys[0], 11, causal_payload='9.9.9.9')
+            time.sleep(10)
             d = send_get_request(hostname, nodes[2], keys[0], causal_payload=d['causal_payload'])
             if int(d['value']) == 11:
                 print("OK, the key-value store works after spamming")
@@ -670,6 +671,7 @@ if __name__ == "__main__":
             r = send_simple_get_request(hostname, part_nodes[0], keys[0], causal_payload='')
             d = r.json()
             d = send_put_request(hostname, part_nodes[1], keys[0], 15, causal_payload=d['causal_payload'])
+            time.sleep(5)
             r = send_simple_get_request(hostname, part_nodes[2], keys[0], causal_payload=d['causal_payload'])
             d = r.json()
             if int(d['value']) != 15:
