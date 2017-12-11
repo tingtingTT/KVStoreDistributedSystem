@@ -162,7 +162,7 @@ def checkNodeStatus():
                         if node not in down_nodes:
                             b.down_nodes.append(node)
                     if node in getReplicaArr():
-                        b.part_dic[b.my_part_id].remove(node)
+                        b.part_dic[getNodePartitionId(b.my_IP)].remove(node)
                     if node in getProxyArr():
                         del b.world_proxy[node]
 
@@ -274,7 +274,7 @@ def partitionKeys(excludeNodes):
     tempkv = copy.deepcopy(b.kv_store)
     b.kv_store_vector_clock = [0]*8
     for part in b.part_dic.keys():
-        if part != b.my_part_id:
+        if part != getNodePartitionId(b.my_IP):
             node = b.part_dic[part][0]
             if node not in excludeNodes:
                 requests.put('http://'+node+'/youShouldRedist')
@@ -429,7 +429,7 @@ def syncWorldProx():
                 requests.put('http://' + node + '/updateWorldProxy', data = {
                 'part_clock': b.part_clock,
                 'proxy_array': ','.join(getProxyArr()),
-                'part_id': b.my_part_id,
+                'part_id': getNodePartitionId(b.my_IP),
                 'world_proxy_arr': json.dumps(b.world_proxy),
                 'my_ip': b.my_IP})
 
@@ -489,11 +489,11 @@ def reDistributeKeys(tempkv):
                 del tempkv[key]
 
         app.logger.info('temp dic = ' + str(temp_dic))
-        if b.my_part_id in temp_dic.keys():
-            b.kv_store.update(temp_dic[b.my_part_id])
+        if getNodePartitionId(b.my_IP) in temp_dic.keys():
+            b.kv_store.update(temp_dic[getNodePartitionId(b.my_IP)])
 
         for index in b.part_dic.keys():
-            if index != b.my_part_id:
+            if index != getNodePartitionId(b.my_IP):
                 if index in temp_dic.keys():
                     replicas = b.part_dic[index]
                     for rep in replicas:
@@ -533,16 +533,16 @@ def getNodePartitionId(node):
             if node in b.world_proxy.keys():
                 node_id = b.world_proxy[node]
     if node_id == "-1":
-        node_id = b.my_part_id
+        node_id = getNodePartitionId(b.my_IP)
 
     return node_id
 ######################################
 # for retrieving the rep and prox arrs
 ########################################
 def getReplicaArr():
-    if b.my_part_id != "-1":
+    if getNodePartitionId(b.my_IP) != "-1":
         try:
-            # app.logger.info('MY REPLICAS: '+ str(b.part_dic[b.my_part_id]))
+            # app.logger.info('MY REPLICAS: '+ str(b.part_dic[getNodePartitionId(b.my_IP)]))
             if len(b.part_dic[getNodePartitionId(b.my_IP)]) > 0:
                 return b.part_dic[getNodePartitionId(b.my_IP)]
         except KeyError:
@@ -736,7 +736,7 @@ class BasicGetPut(Resource):
         # if senders causal_payload is less than or equal to mine, I am as, or more up to date
         else:
             for partID in b.part_dic:
-                if(partID != b.my_part_id):
+                if(partID != getNodePartitionId(b.my_IP)):
                     node = b.part_dic[partID][0] # 1st node in that partition
                     try:
                         r = requests.get('http://'+node+'/checkKeyInKv/'+key, timeout=10)
@@ -800,7 +800,7 @@ class BasicGetPut(Resource):
 
         else:
             for partID in b.part_dic.keys():
-                if(partID != b.my_part_id):
+                if(partID != getNodePartitionId(b.my_IP)):
                     replicas = b.part_dic[partID]# 1st node in that partition
                     for rep in replicas:
                         try:
@@ -815,7 +815,7 @@ class BasicGetPut(Resource):
         if len(b.part_dic.keys())== 1:
             my_time = time.time()
             b.kv_store[key] = (value, my_time)
-            b.kv_store_vector_clock[int(b.my_part_id)] += 1
+            b.kv_store_vector_clock[int(getNodePartitionId(b.my_IP))] += 1
             return putNewKey(my_time)
         # otherwise key does not exist, add new key
         node = b.my_IP
@@ -967,7 +967,7 @@ class AddNode(Resource):
         # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
         if add_node_ip_port not in getPartitionView():
             # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
-            update(add_node_ip_port, b.my_part_id)
+            update(add_node_ip_port, getNodePartitionId(b.my_IP))
         return jsonify({'node': b.my_IP, 'ip_port': add_node_ip_port})
 
 #########################################
@@ -980,7 +980,7 @@ class RemoveNode(Resource):
         # return jsonify({'node': my_IP, 'ip_port': add_node_ip_port})
             # b.part_clock += 1
         if remove_node_ip_port in getReplicaArr():
-            b.part_dic[b.my_part_id].remove(remove_node_ip_port)
+            b.part_dic[getNodePartitionId(b.my_IP)].remove(remove_node_ip_port)
         elif remove_node_ip_port in getProxyArr():
             del b.world_proxy[remove_node_ip_port]
         return jsonify({'node': b.my_IP, 'remove_ip_port': remove_node_ip_port})
@@ -1016,11 +1016,11 @@ class UpdateView(Resource):
 
             # automatically add node as proxy
             if add_node_ip_port not in getPartitionView():
-                b.world_proxy[add_node_ip_port] = b.my_part_id
+                b.world_proxy[add_node_ip_port] = getNodePartitionId(b.my_IP)
                 # give the brand new node its attributes using current node's data
 
                 requests.put('http://'+ add_node_ip_port +'/update_datas', data={
-                'part_id':b.my_part_id,
+                'part_id':getNodePartitionId(b.my_IP),
                 'world_proxy':json.dumps(b.world_proxy),
                 'part_dic':json.dumps(b.part_dic),
                 'part_clock': b.part_clock,
@@ -1037,7 +1037,7 @@ class UpdateView(Resource):
         elif type == 'remove':
             # if add_node_ip_port not in getPartitionView():
             #     for index in b.part_dic.keys():
-            #         if index != b.my_part_id:
+            #         if index != getNodePartitionId(b.my_IP):
             #             replicas = b.part_dic[index]
             #             try:
             #                 index2 = 0
@@ -1141,8 +1141,8 @@ class ResetData(Resource):
         b.kv_store={} # key:[value, time_stamp]
         b.node_ID_dic={} # ip_port: node_ID
         b.kv_store_vector_clock=[0]*8 # is the pay load
-        b.part_dic[b.my_part_id]=[] # a list of current replicas IP:Port
-        b.world_proxy[b.my_part_id]=[] # a list of current proxies  IP:Port
+        b.part_dic[getNodePartitionId(b.my_IP)]=[] # a list of current replicas IP:Port
+        b.world_proxy[getNodePartitionId(b.my_IP)]=[] # a list of current proxies  IP:Port
         b.part_clock = 0
 
 #######################################
@@ -1237,7 +1237,7 @@ def promoteNode(promote_node_IP, promote_part_id):
     # ChangeView on node
     # try:
     #     requests.put("http://"+promote_node_IP+"/promoteDemote", timeout=5, data={
-    #     'part_id': b.my_part_id,
+    #     'part_id': getNodePartitionId(b.my_IP),
     #     'part_dic':json.dumps(b.part_dic),
     #     'node_ID_dic': json.dumps(b.node_ID_dic),
     #     'part_clock': b.part_clock,
@@ -1255,11 +1255,11 @@ def demoteNode(demote_node_IP):
     # remove me iff my clock is behind others
     # if checkLessEq(node_kv_clock, b.kv_store_vector_clock):
     if demote_node_IP in getReplicaArr():
-        b.part_dic[b.my_part_id].remove(demote_node_IP)
-    b.world_proxy[demote_node_IP] = b.my_part_id
+        b.part_dic[getNodePartitionId(b.my_IP)].remove(demote_node_IP)
+    b.world_proxy[demote_node_IP] = getNodePartitionId(b.my_IP)
     try:
         requests.put("http://"+demote_node_IP+"/promoteDemote", timeout=5, data={
-        'part_id': b.my_part_id,
+        'part_id': getNodePartitionId(b.my_IP),
         'part_dic':json.dumps(b.part_dic),
         'part_clock': b.part_clock,
         'node_ID_dic': json.dumps(b.node_ID_dic),
@@ -1280,7 +1280,7 @@ class GetPartitionId(Resource):
     # "result":"success",
     # "partition_id": 3,
     def get(self):
-        return jsonify({'result':'success','partition_id': b.my_part_id})
+        return jsonify({'result':'success','partition_id': getNodePartitionId(b.my_IP)})
 
 
 ####################################################################
@@ -1293,7 +1293,7 @@ class AddToWorldProxy(Resource):
         their_clock = int(data['part_clock'])
         if their_clock > b.part_clock:
             for node in proxy_array:
-                b.world_proxy[node] = b.my_part_id
+                b.world_proxy[node] = getNodePartitionId(b.my_IP)
 
 ####################################################################
 # merges current vector clock with sender's vector clock
@@ -1354,7 +1354,7 @@ class SyncPartDic(Resource):
                 if node != b.my_IP:
                     try:
                         requests.put("http://"+node+"/changeView", timeout=5, data={
-                        'part_id': b.my_part_id,
+                        'part_id': getNodePartitionId(b.my_IP),
                         'part_dic':json.dumps(b.part_dic),
                         'node_ID_dic': json.dumps(b.node_ID_dic),
                         'part_clock': b.part_clock,
@@ -1425,14 +1425,14 @@ class YouShouldRedist(Resource):
 # get a node info successfully
 def getSuccess(value, time_stamp):
     num_nodes_in_view = len(getPartitionView())
-    response = jsonify({'result': 'success', 'value': value, 'partition_id': b.my_part_id, 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
+    response = jsonify({'result': 'success', 'value': value, 'partition_id': getNodePartitionId(b.my_IP), 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
     response.status_code = 200
     return response
 
 # put value for a key successfullys
 def putNewKey(time_stamp):
     time.sleep(.3)
-    response = jsonify({'result': 'success', 'partition_id': b.my_part_id, 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
+    response = jsonify({'result': 'success', 'partition_id': getNodePartitionId(b.my_IP), 'causal_payload': '.'.join(map(str,b.kv_store_vector_clock)), 'timestamp': time_stamp})
     response.status_code = 201
     return response
 

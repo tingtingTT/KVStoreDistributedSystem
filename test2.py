@@ -343,8 +343,8 @@ if __name__ == "__main__":
     # TODO PLEASE NOTE THAT YOU CAN RUN INDIVIDUAL TESTS AS BELOW, IF YOU WOULD LIKE, INSTEAD OF ALL NINE.
     # for instance, the below line would run only tests 2 and 9.
     # tests_to_run = [2, 9]
-    tests_to_run = [4]
-    # tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    # tests_to_run = [4]
+    tests_to_run = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 
     if 1 in tests_to_run:
