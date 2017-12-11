@@ -1,4 +1,3 @@
-tempkv#######################################################
 from flask import Flask, abort, request, jsonify, make_response, current_app
 from flask_restful import Resource, Api
 import json
@@ -669,7 +668,7 @@ class BasicGetPut(Resource):
                     except requests.exceptions.ConnectionError:
                         pass
 
-           else:
+            else:
                 return cusError('Invalid causal_payload',404)
 
         # if senders causal_payload is less than or equal to mine, I am as, or more up to date
@@ -1274,7 +1273,7 @@ class GetPartitionMembers(Resource):
 
 #???????????????????????????????????????????????????????????????????
 # changed return type
-        return jsonify({"result":"success","partition_members":','.join(id_list)})
+        return jsonify({"result":"success","partition_members": getReplicaArr() + getProxyArr()})
 
 #########################################################################################
 # Sync the Partition Dictionaries between partitions. Take in part_clock and part_dic
