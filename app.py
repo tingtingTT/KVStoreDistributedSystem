@@ -175,11 +175,14 @@ def removeNodeSync(delete_node_part_id):
     app.logger.info('I AM IN removeNodeSync')
     app.logger.info('delete node part id is ' + str(delete_node_part_id))
     # Not enough nodes in this partition
+    nodePromoted = None
+    nodeDemoted = []
     if len(b.part_dic[delete_node_part_id])<b.K:
         # promote your own shit first
         if len(getThierProxies(delete_node_part_id)) > 0:
             promoteNode(getThierProxies(remove_node_id)[0], delete_node_part_id)
             # del b.world_proxy[getProxyArr()[0]]
+            nodePromoted = getThierProxies(remove_node_id)[0]
             app.logger.info('calling promote .......1')
         # start asking other people
         elif len(b.world_proxy.keys())>0:
@@ -189,9 +192,10 @@ def removeNodeSync(delete_node_part_id):
             #promote the node
             app.logger.info('calling promote .......2')
             promoteNode(proxies[0], delete_node_part_id)
+            nodePromoted = proxies[0]
         else:
             app.logger.info('NO PROXIES, SO DEMOTE LEFT OVER NODES')
-            demoteAllNodes(delete_node_part_id)
+            nodeDemoted = demoteAllNodes(delete_node_part_id)
             reDisKey = True
             app.logger.info('after demote all')
     allNodes = []
@@ -208,9 +212,33 @@ def removeNodeSync(delete_node_part_id):
                 response = requests.put('http://'+node+'/syncPartDicProxy', timeout=5, data={'part_clock': b.part_clock, 'part_dic': json.dumps(b.part_dic), 'world_proxy': json.dumps(b.world_proxy)})
             except requests.exceptions.Timeout:
                 pass
+    if nodePromoted is not None:
+        # someone was promoted, need to change its info
+        if nodePromoted == b.my_IP:
+            # get kv_store from the partition I am in
+            b.my_part_id = getPartId(b.my_IP)
+            replica = b.part_dic[b.my_part_id][0]
+            response = requests.get("http://"+replica+"/getKvInfo")
+            data = response.json()
+            their_kv_store = json.loads(data['kv_store'])
+            their_kv_store_clock = map(int,data['kv_store_vector_clock'].split('.'))
+            b.kv_store = copy.deepcopy(their_kv_store)
+            b.kv_store_vector_clock = their_kv_store_clock
+        else:
+            promote_part_id = getPartId(nodePromoted)
+            replica = b.part_dic[b.my_part_id][0]
+            response = requests.get("http://"+replica+"/getKvInfo")
+            data = response.json()
+            their_kv_store = json.loads(data['kv_store'])
+            their_kv_store_clock = map(int,data['kv_store_vector_clock'].split('.'))
+            requests.put("http://"+nodePromoted+"/setKvInfo", data={'part_id': promote_part_id, 'kv_store': json.dumps(their_kv_store), 'kv_store_vector_clock': ','.join(map(their_kv_store_clock))})
+
+    if len(nodeDemoted) > 0:
+        app.logger.info("demote all")
+        # all replicas get demoted, need to transfer its info to another partition,
     if reDisKey == True:
         reDistributeKeys()
-    return removeNodeSuccess()
+    # return removeNodeSuccess()
 
 def addNodeSync():
     # Enough proxies for a new partition
@@ -330,6 +358,7 @@ def demoteAllNodes(delete_node_part_id):
     app.logger.info('demoteAllNodes is changing my id')
     b.my_part_id = "0"
     app.logger.info('Setting my dictionary to ' + str(b.part_dic))
+    return proxy_node
 
 ##########################################
 # Sync world view when partition is deleted
@@ -750,6 +779,12 @@ class BasicGetPut(Resource):
 
         # otherwise key does not exist, add new key
         node = b.my_IP
+        if len(b.part_dic.keys()) == 1:
+            my_time = time.time()
+            b.kv_store[key] = (value, my_time)
+            b.kv_store_vector_clock[int(b.my_part_id)] += 1
+            return putNewKey(my_time)
+
         try:
             while(node == b.my_IP):
                 random_part_id = random.randint(0,len(b.part_dic)-1)
@@ -958,7 +993,6 @@ class UpdateView(Resource):
                 'part_id':b.my_part_id,
                 'world_proxy':json.dumps(b.world_proxy),
                 'part_dic':json.dumps(b.part_dic),
-                'part_clock': b.part_clock,
                 'kv_store':json.dumps({}),
                 'node_ID_dic':json.dumps(b.node_ID_dic),
                 'part_clock': b.part_clock
@@ -1171,18 +1205,6 @@ def promoteNode(promote_node_IP, promote_part_id):
     # if promote_node_IP in worldProxy:
     app.logger.info('adding promoted node to dic')
     b.part_dic[promote_part_id].append(promote_node_IP)
-
-# Tingting: do we still need this??
-    # ChangeView on node
-    # try:
-    #     requests.put("http://"+promote_node_IP+"/promoteDemote", timeout=5, data={
-    #     'part_id': b.my_part_id,
-    #     'part_dic':json.dumps(b.part_dic),
-    #     'node_ID_dic': json.dumps(b.node_ID_dic),
-    #     'part_clock': b.part_clock,
-    #     'world_proxy': json.dumps(b.world_proxy)})
-    # except requests.exceptions.Timeout:
-    #     pass
     del b.world_proxy[promote_node_IP]
     return
 ############################################
@@ -1320,31 +1342,27 @@ class SyncPartDicProxy(Resource):
             b.part_clock += 1
             b.part_dic = their_part_dic
             b.world_proxy = their_world_proxy
-            # for part_id in b.part_dic.keys():
-            #     if b.my_IP in b.part_dic[part_id]:
-            #         b.my_part_id = part_id
-            #         #app.logger.info('MY IP'+str(b.my_IP)+"...MY ID"+str(b.my_part_id))
-            #
-            # #app.logger.info('I AM BEFORE FOR LOOP...')
-            # for node in getPartitionView():
-            #     #app.logger.info('I JUST GOT TO FOR LOOP...')
-            #     if node != b.my_IP:
-            #         #app.logger.info('PART ID PASSING...'+str(b.my_part_id))
-            #         #app.logger.info('PART DIC PASSING...'+str(b.part_dic))
-            #         #app.logger.info('WORLD PROXY PASSING...'+str(b.world_proxy))
-            #         #app.logger.info('CLOCK PASSING...'+str(b.part_clock))
-            #         #app.logger.info('I AM CALLING CHANGEVIEW AT '+str(getReplicaArr()))
-            #
-            #         requests.put("http://"+node+"/changeView", data={
-            #         'part_id': b.my_part_id,
-            #         'part_dic':json.dumps(b.part_dic),
-            #         'node_ID_dic': json.dumps(b.node_ID_dic),
-            #         'part_clock': b.part_clock,
-            #         'world_proxy': json.dumps(b.world_proxy)})
-
         return
 
     # return jsonify({'part_dic':json.dumps(b.part_dic)})
+
+def getPartId(node):
+    for index in b.part_dic.keys():
+        if node in b.part_dic[index]:
+            return str(index)
+
+
+class GetKvInfo(Resource):
+    def get(self):
+        return jsonify({'kv_store': json.dumps(b.kv_store), 'kv_store_vector_clock': '.'.join(map(str,b.kv_store_vector_clock)), 'part_id': str(b.my_part_id)})
+
+class SetKvInfo(Resource):
+    def put(self):
+        data = request.form.to_dict()
+        b.kv_store = copy.deepcopy(json.loads(data['kv_store']))
+        b.kv_store_vector_clock = map(int,data['kv_store_vector_clock'].split('.'))
+        b.my_part_id = data['part_id']
+
 
 
 ####################################################
@@ -1557,6 +1575,13 @@ api.add_resource(ResetKv, '/resetKv')
 api.add_resource(DeleteProxy, '/deleteProxy')
 api.add_resource(AddToWorldProxy, '/addToWorldProxy')
 api.add_resource(SyncPartDicProxy, '/syncPartDicProxy')
+api.add_resource(SetKvInfo, '/setKvInfo')
+api.add_resource(GetKvInfo, '/getKvInfo')
+
+
+
+
+
 
 
 
