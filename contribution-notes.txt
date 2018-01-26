@@ -1,10 +1,9 @@
 twang80:
-1.set up skeleton for main variables and functions
-2. finish initVIEW function
-3. update_view add
-4. update_view remove
-5. addNode()
-6. removeNode()
+1. add node and promotion
+2. remove node and demotion
+3. modify get and put
+4. implementation design
+5. partition change sync
 
 ashen7:
 1. implementation design
@@ -12,25 +11,17 @@ ashen7:
 3. put key
 4. promote
 5. demote node
-6. error checking
 
 slflak:
-  1. Head of implementation design
-  2. heartbeat design and implementation
-  3. worldsync design
-  4. help with get/put
-  5. make getKeyDetails
-  6. error checking
+1. reDistributeKeys
+2. check concurrent causal_payload
+3. implementation design
+4. sync proxies
+5. sync partitions
 
 sraissia:
-  1. vector clock
-  2. get requests for vector clock
-  3. ping to check which hosts are up
-  4. revising code, bug fixes and general testing
-  5. promote demnote
-  6. update data
-  7. theory implementation
-  8. funky python syntax
-
-
-  NOTE: everyone worked equally
+1. vector clock
+2. get requests for vector clock
+3. ping to check which hosts are up
+4. revising code, bug fixes and general testing
+5. promote demnote
